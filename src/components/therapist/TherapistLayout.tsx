@@ -26,7 +26,7 @@ export function TherapistLayout() {
     navigate('/login', { replace: true })
   }
 
-  const showOnboardingBanner = profile && !profile.onboarding_completed
+  const showOnboardingBanner = profile && !profile.google_calendar_connected
 
   return (
     <div className="flex h-screen bg-gray-50">

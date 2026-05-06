@@ -247,7 +247,7 @@ export function TherapistAppointments() {
     queryFn: () => listTherapistAppointments(statusFilter ? { status: statusFilter } : {}),
   })
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: listMyClients })
-  const activeClients = clients.filter(c => c.client_is_active && c.is_active)
+  const activeClients = clients.filter(c => c.is_active)
 
   // ── Single appointment form ───────────────────────────────────────────────
   const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateForm>({

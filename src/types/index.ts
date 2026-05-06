@@ -1,4 +1,4 @@
-export type Role = 'therapist' | 'client'
+export type Role = 'therapist' | 'client' | 'admin'
 
 export interface Therapist {
   id: string
@@ -19,6 +19,8 @@ export interface Therapist {
   google_calendar_connected: boolean
   stripe_connected: boolean
   onboarding_completed: boolean
+  payment_provider: string
+  payme_seller_id?: string
   created_at: string
 }
 
@@ -99,6 +101,8 @@ export interface Invoice {
   due_date: string
   paid_at?: string
   stripe_payment_link?: string
+  payment_provider?: string
+  payment_link?: string
   created_at: string
 }
 

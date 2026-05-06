@@ -32,9 +32,9 @@ export function TherapistDashboard() {
     queryFn: getMyTherapistProfile,
   })
 
-  // Redirect to onboarding until both Calendar and Stripe are connected
+  // Redirect to onboarding until Google Calendar is connected
   useEffect(() => {
-    if (profile && !profile.onboarding_completed) {
+    if (profile && !profile.google_calendar_connected) {
       navigate('/therapist/onboarding', { replace: true })
     }
   }, [profile])

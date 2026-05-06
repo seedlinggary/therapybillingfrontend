@@ -17,3 +17,6 @@ export const forgotPassword = (email: string) =>
 
 export const resetPassword = (email: string, code: string, new_password: string) =>
   api.post('/auth/client/reset-password', { email, code, new_password }).then(r => r.data)
+
+export const adminLogin = (email: string, password: string) =>
+  api.post('/auth/admin/login', { email, password }).then(r => r.data)

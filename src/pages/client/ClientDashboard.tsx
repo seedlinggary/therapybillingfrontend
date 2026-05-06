@@ -93,9 +93,9 @@ export function ClientDashboard() {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="font-semibold text-sm text-gray-900">{sym(inv.currency)}{inv.amount.toFixed(2)}</span>
-                    {inv.stripe_payment_link && (
+                    {(inv.payment_link ?? inv.stripe_payment_link) && (
                       <a
-                        href={inv.stripe_payment_link}
+                        href={(inv.payment_link ?? inv.stripe_payment_link)!}
                         target="_blank"
                         rel="noreferrer"
                         className="btn-primary text-xs py-1 px-3"

@@ -9,6 +9,10 @@ import { ActivateAccount } from './pages/auth/ActivateAccount'
 import { TherapistLogin } from './pages/auth/TherapistLogin'
 import { ForgotPassword } from './pages/auth/ForgotPassword'
 import { ResetPassword } from './pages/auth/ResetPassword'
+import { AdminLogin } from './pages/auth/AdminLogin'
+
+// Admin pages
+import { AdminDashboard } from './pages/admin/AdminDashboard'
 
 // Therapist pages
 import { TherapistLayout } from './components/therapist/TherapistLayout'
@@ -26,9 +30,9 @@ import { ClientDashboard } from './pages/client/ClientDashboard'
 import { ClientSessions } from './pages/client/ClientSessions'
 import { ClientInvoices } from './pages/client/ClientInvoices'
 
-function RequireAuth({ role, children }: { role: 'therapist' | 'client'; children: React.ReactNode }) {
+function RequireAuth({ role, children }: { role: 'therapist' | 'client' | 'admin'; children: React.ReactNode }) {
   const { accessToken, role: userRole } = useAuthStore()
-  if (!accessToken) return <Navigate to="/login" replace />
+  if (!accessToken) return <Navigate to={role === 'admin' ? '/admin/login' : '/login'} replace />
   if (userRole !== role) return <Navigate to="/" replace />
   return <>{children}</>
 }
@@ -38,6 +42,14 @@ export default function App() {
 
   return (
     <Routes>
+      {/* Admin */}
+      <Route path="/admin/login" element={<AdminLogin />} />
+      <Route path="/admin" element={
+        <RequireAuth role="admin">
+          <AdminDashboard />
+        </RequireAuth>
+      } />
+
       {/* Public */}
       <Route path="/login" element={<TherapistLogin />} />
       <Route path="/client/login" element={<ClientLogin />} />
@@ -77,6 +89,7 @@ export default function App() {
       <Route path="/" element={
         role === 'therapist' ? <Navigate to="/therapist" replace /> :
         role === 'client' ? <Navigate to="/client" replace /> :
+        role === 'admin' ? <Navigate to="/admin" replace /> :
         <Navigate to="/login" replace />
       } />
     </Routes>

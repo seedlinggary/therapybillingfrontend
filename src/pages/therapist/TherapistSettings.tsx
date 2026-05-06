@@ -6,6 +6,7 @@ import {
   getMyTherapistProfile, updateTherapistProfile,
   getCalendarConnectUrl, getStripeConnectUrl, manualConnectStripe,
   disconnectGoogleCalendar, disconnectStripe,
+  connectPayMe, disconnectPayMe,
 } from '../../api/clients'
 import {
   connectAccounting, disconnectAccounting, getAccountingStatus,
@@ -49,6 +50,8 @@ export function TherapistSettings() {
   const [showManualStripe, setShowManualStripe] = useState(false)
   const [showICountForm, setShowICountForm] = useState(false)
   const [iCountForm, setICountForm] = useState({ company_id: '', username: '', api_key: '' })
+  const [showPayMeForm, setShowPayMeForm] = useState(false)
+  const [payMeForm, setPayMeForm] = useState({ seller_id: '', api_key: '' })
 
   const { data: profile } = useQuery({
     queryKey: ['therapist-profile'],
@@ -161,6 +164,26 @@ export function TherapistSettings() {
       toast.success('iCount disconnected')
     },
     onError: () => toast.error('Failed to disconnect iCount'),
+  })
+
+  const payMeConnectMutation = useMutation({
+    mutationFn: () => connectPayMe(payMeForm),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['therapist-profile'] })
+      toast.success('PayMe connected')
+      setShowPayMeForm(false)
+      setPayMeForm({ seller_id: '', api_key: '' })
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? 'Failed to connect PayMe'),
+  })
+
+  const payMeDisconnectMutation = useMutation({
+    mutationFn: disconnectPayMe,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['therapist-profile'] })
+      toast.success('PayMe disconnected — switched back to Stripe')
+    },
+    onError: () => toast.error('Failed to disconnect PayMe'),
   })
 
   if (!profile) return <div className="p-8 text-gray-400">Loading...</div>
@@ -495,6 +518,96 @@ export function TherapistSettings() {
                     </button>
                   </>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* PayMe — Israel only */}
+          {isIL && (
+            <div className="flex items-center justify-between py-3 border-t border-gray-100 mt-2">
+              <div className="flex items-center gap-3">
+                <CreditCard className="w-5 h-5 text-gray-500" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">PayMe (פייMי)</p>
+                  <p className="text-xs text-gray-500">Accept card &amp; Bit payments via PayMe</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {profile.payment_provider === 'payme' ? (
+                  <>
+                    <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                      <CheckCircle className="w-3.5 h-3.5" /> Active
+                    </span>
+                    {profile.payme_seller_id && (
+                      <span className="text-xs text-gray-400 font-mono">{profile.payme_seller_id}</span>
+                    )}
+                    <button
+                      onClick={() => setShowPayMeForm(v => !v)}
+                      className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 px-3 py-1.5 rounded-lg">
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => confirm('Disconnect PayMe? Clients will be billed via Stripe instead.') && payMeDisconnectMutation.mutate()}
+                      disabled={payMeDisconnectMutation.isPending}
+                      className="text-xs text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg">
+                      Disconnect
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex items-center gap-1 text-xs text-gray-400">
+                      <AlertCircle className="w-3.5 h-3.5" /> Not connected
+                    </span>
+                    <button
+                      onClick={() => setShowPayMeForm(v => !v)}
+                      className="btn-primary text-xs px-3 py-1.5">
+                      Connect
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* PayMe credentials form */}
+          {isIL && showPayMeForm && (
+            <div className="bg-blue-50 rounded-lg p-4 space-y-3">
+              <p className="text-sm text-blue-800 font-medium">
+                {profile.payment_provider === 'payme' ? 'Update PayMe credentials' : 'Enter your PayMe seller credentials'}
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="label text-xs">Seller ID</label>
+                  <input
+                    value={payMeForm.seller_id}
+                    onChange={e => setPayMeForm(f => ({ ...f, seller_id: e.target.value }))}
+                    placeholder="e.g. MPL12345"
+                    className="input text-sm font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="label text-xs">API Key</label>
+                  <input
+                    type="password"
+                    value={payMeForm.api_key}
+                    onChange={e => setPayMeForm(f => ({ ...f, api_key: e.target.value }))}
+                    placeholder="••••••••"
+                    className="input text-sm"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => payMeConnectMutation.mutate()}
+                  disabled={!payMeForm.seller_id || !payMeForm.api_key || payMeConnectMutation.isPending}
+                  className="btn-primary text-sm px-4">
+                  {payMeConnectMutation.isPending
+                    ? 'Saving...'
+                    : profile.payment_provider === 'payme' ? 'Update Credentials' : 'Save & Activate'}
+                </button>
+                <button onClick={() => setShowPayMeForm(false)} className="btn-secondary text-sm px-4">
+                  Cancel
+                </button>
               </div>
             </div>
           )}

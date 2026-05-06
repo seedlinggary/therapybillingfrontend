@@ -70,7 +70,7 @@ function InvoiceRow({
             </button>
             {inv.status === 'unpaid' && (
               <>
-                {inv.stripe_payment_link && (
+                {(inv.stripe_payment_link || (inv.payment_provider === 'stripe' && inv.payment_link)) && (
                   <button
                     onClick={onVerifyStripe}
                     title="Check Stripe — mark paid if payment completed"
@@ -143,7 +143,7 @@ export function TherapistInvoices() {
   const autoChecked = useRef(false)
   useEffect(() => {
     if (autoChecked.current || isLoading) return
-    const unpaid = invoices.filter(inv => inv.status === 'unpaid' && inv.stripe_payment_link)
+    const unpaid = invoices.filter(inv => inv.status === 'unpaid' && (inv.stripe_payment_link || (!inv.payment_provider || inv.payment_provider === 'stripe')))
     if (unpaid.length === 0) return
     autoChecked.current = true
     Promise.allSettled(unpaid.map(inv => verifyStripePayment(inv.id))).then(results => {

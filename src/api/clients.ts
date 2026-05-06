@@ -25,6 +25,12 @@ export const disconnectGoogleCalendar = (): Promise<void> =>
 export const disconnectStripe = (): Promise<void> =>
   api.delete('/onboarding/stripe').then(r => r.data)
 
+export const connectPayMe = (data: { seller_id: string; api_key: string }): Promise<Therapist> =>
+  api.post('/onboarding/payme/connect', data).then(r => r.data)
+
+export const disconnectPayMe = (): Promise<void> =>
+  api.delete('/onboarding/payme').then(r => r.data)
+
 export const listMyClients = (): Promise<TherapistClient[]> =>
   api.get('/therapist/clients').then(r => r.data)
 

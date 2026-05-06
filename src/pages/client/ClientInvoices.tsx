@@ -129,9 +129,9 @@ export function ClientInvoices() {
                         <Download className="w-4 h-4" />
                       </button>
                       {inv.status === 'unpaid' && (
-                        inv.stripe_payment_link ? (
+                        inv.payment_link ?? inv.stripe_payment_link ? (
                           <a
-                            href={inv.stripe_payment_link}
+                            href={(inv.payment_link ?? inv.stripe_payment_link)!}
                             target="_blank"
                             rel="noreferrer"
                             className="btn-primary text-xs py-1 px-3 flex items-center gap-1"
