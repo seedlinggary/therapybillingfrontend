@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import toast from 'react-hot-toast'
 import { listMyClients, createClient, updateClient, resendInvite, updateClientBilling, getMyTherapistProfile } from '../../api/clients'
-import { Plus, Mail, Settings2 } from 'lucide-react'
+import { Plus, Mail, Settings2, Pencil } from 'lucide-react'
 import type { TherapistClient, BillingFrequency } from '../../types'
 
 const createSchema = z.object({
@@ -31,6 +31,92 @@ function StatusBadge({ active, clientActive }: { active: boolean; clientActive: 
   if (!active) return <span className="badge-gray">Inactive</span>
   return <span className="badge-green">Active</span>
 }
+
+function EditClientModal({
+  client,
+  onClose,
+}: { client: TherapistClient; onClose: () => void }) {
+  const qc = useQueryClient()
+  const [form, setForm] = useState({
+    name: client.name,
+    email: client.email,
+    phone: client.phone ?? '',
+    default_session_price: client.default_session_price,
+    notes: client.notes ?? '',
+    is_active: client.is_active,
+  })
+
+  const mutation = useMutation({
+    mutationFn: () => updateClient(client.client_id, {
+      name: form.name,
+      email: form.email,
+      phone: form.phone || undefined,
+      default_session_price: form.default_session_price,
+      notes: form.notes || undefined,
+      is_active: form.is_active,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['clients'] })
+      toast.success('Client updated')
+      onClose()
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? 'Failed to update client'),
+  })
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl p-6 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
+        <h2 className="text-lg font-semibold">Edit Client</h2>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Name</label>
+            <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="input" />
+          </div>
+          <div>
+            <label className="label">Email</label>
+            <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className="input" />
+          </div>
+          <div>
+            <label className="label">Phone</label>
+            <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} className="input" placeholder="+1 555-0100" />
+          </div>
+          <div>
+            <label className="label">Default Price</label>
+            <input
+              type="number" step="0.01" min="0"
+              value={form.default_session_price}
+              onChange={e => setForm(f => ({ ...f, default_session_price: parseFloat(e.target.value) || 0 }))}
+              className="input"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="label">Private Notes</label>
+          <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} className="input h-20 resize-none" />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <input
+            id="is_active" type="checkbox" checked={form.is_active}
+            onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))}
+            className="w-4 h-4"
+          />
+          <label htmlFor="is_active" className="text-sm text-gray-700">Active (include in scheduling &amp; billing)</label>
+        </div>
+
+        <div className="flex gap-3 pt-1">
+          <button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="btn-primary flex-1">
+            {mutation.isPending ? 'Saving...' : 'Save Changes'}
+          </button>
+          <button onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 
 function BillingModal({
   client,
@@ -120,6 +206,7 @@ export function TherapistClients() {
   const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
   const [billingClient, setBillingClient] = useState<TherapistClient | null>(null)
+  const [editingClient, setEditingClient] = useState<TherapistClient | null>(null)
 
   const { data: profile } = useQuery({ queryKey: ['therapist-profile'], queryFn: getMyTherapistProfile })
   const sym = profile?.default_currency === 'ILS' ? '₪' : '$'
@@ -205,6 +292,11 @@ export function TherapistClients() {
         <BillingModal client={billingClient} onClose={() => setBillingClient(null)} />
       )}
 
+      {/* Edit client modal */}
+      {editingClient && (
+        <EditClientModal client={editingClient} onClose={() => setEditingClient(null)} />
+      )}
+
       {/* Client table */}
       <div className="card p-0 overflow-hidden">
         {isLoading ? (
@@ -250,6 +342,10 @@ export function TherapistClients() {
                           <Mail className="w-3 h-3" /> Resend Invite
                         </button>
                       )}
+                      <button onClick={() => setEditingClient(client)}
+                        className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
+                        <Pencil className="w-3 h-3" /> Edit
+                      </button>
                       <button onClick={() => setBillingClient(client)}
                         className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
                         <Settings2 className="w-3 h-3" /> Billing

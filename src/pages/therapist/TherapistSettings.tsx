@@ -11,6 +11,7 @@ import {
 import {
   connectAccounting, disconnectAccounting, getAccountingStatus,
 } from '../../api/accounting'
+import { getExchangeRate } from '../../api/clients'
 import { CreditCard, User, Calendar, Link2, CheckCircle, AlertCircle, Clock, BookOpen } from 'lucide-react'
 import type { BillingFrequency } from '../../types'
 
@@ -27,6 +28,7 @@ interface SettingsForm {
   default_session_price: number
   default_billing_frequency: BillingFrequency
   default_billing_anchor_day: number
+  show_conversion_note: boolean
 }
 
 const TIMEZONES = [
@@ -71,6 +73,15 @@ export function TherapistSettings() {
   const anchorDay = watch('default_billing_anchor_day')
   const watchedCountry = watch('country')
   const watchedCurrency = watch('default_currency')
+  const watchedConversionNote = watch('show_conversion_note')
+
+  const otherCurrency = watchedCurrency === 'ILS' ? 'USD' : 'ILS'
+  const { data: rateData } = useQuery({
+    queryKey: ['exchange-rate', watchedCurrency, otherCurrency],
+    queryFn: () => getExchangeRate(watchedCurrency || 'USD', otherCurrency),
+    staleTime: 5 * 60 * 1000,
+    enabled: watchedConversionNote,
+  })
 
   useEffect(() => {
     if (profile) {
@@ -87,6 +98,7 @@ export function TherapistSettings() {
         default_session_price: profile.default_session_price ?? 0,
         default_billing_frequency: profile.default_billing_frequency ?? 'same_day',
         default_billing_anchor_day: profile.default_billing_anchor_day ?? 0,
+        show_conversion_note: profile.show_conversion_note ?? false,
       })
     }
   }, [profile])
@@ -355,6 +367,51 @@ export function TherapistSettings() {
           <p className="text-xs text-gray-400 mt-2">
             Leave blank if you only accept Stripe payments.
           </p>
+        </div>
+
+        {/* ── Currency Conversion Note ── */}
+        <div className="card">
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-lg">💱</span>
+            <h2 className="font-semibold text-gray-900">Currency Conversion Note</h2>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">
+            Automatically appends a live exchange rate line to every invoice email.
+          </p>
+
+          <div className="flex items-center gap-3 mb-4">
+            <input
+              id="show_conversion_note"
+              type="checkbox"
+              {...register('show_conversion_note')}
+              className="w-4 h-4 accent-primary-600"
+            />
+            <label htmlFor="show_conversion_note" className="text-sm font-medium text-gray-700">
+              Include conversion note on invoice emails
+            </label>
+          </div>
+
+          {/* Live preview */}
+          <div className={`rounded-lg border px-4 py-3 text-sm transition-colors ${watchedConversionNote ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Preview</p>
+            {rateData ? (() => {
+              const sym = (c: string) => c === 'ILS' ? '₪' : c === 'USD' ? '$' : c
+              const sampleAmount = 100
+              const converted = (sampleAmount * rateData.rate).toFixed(2)
+              return (
+                <p className={watchedConversionNote ? 'text-green-800' : 'text-gray-400'}>
+                  💱 Today's conversion from {rateData.from} to {rateData.to} is {rateData.rate.toFixed(4)} —{' '}
+                  {sym(rateData.from)}{sampleAmount}.00 = {sym(rateData.to)}{converted}
+                </p>
+              )
+            })() : (
+              <p className="text-gray-400">
+                💱 Today's conversion from {watchedCurrency || 'USD'} to {otherCurrency} is{' '}
+                {rateData === undefined && watchedConversionNote ? 'loading…' : '—'}{' '}
+                {watchedConversionNote ? '' : '(enable to see live rate)'}
+              </p>
+            )}
+          </div>
         </div>
 
         <div className="flex justify-end">

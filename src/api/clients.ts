@@ -47,11 +47,17 @@ export const getClient = (clientId: string): Promise<TherapistClient> =>
   api.get(`/therapist/clients/${clientId}`).then(r => r.data)
 
 export const updateClient = (clientId: string, data: {
+  name?: string
+  email?: string
+  phone?: string
   default_session_price?: number
   notes?: string
   is_active?: boolean
 }): Promise<TherapistClient> =>
   api.patch(`/therapist/clients/${clientId}`, data).then(r => r.data)
+
+export const getExchangeRate = (from: string, to: string): Promise<{ from: string; to: string; rate: number }> =>
+  api.get('/onboarding/exchange-rate', { params: { from_currency: from, to_currency: to } }).then(r => r.data)
 
 export const resendInvite = (clientId: string): Promise<void> =>
   api.post(`/therapist/clients/${clientId}/resend-invite`).then(r => r.data)
