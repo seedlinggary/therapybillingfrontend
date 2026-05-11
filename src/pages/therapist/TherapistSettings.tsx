@@ -7,6 +7,7 @@ import {
   getCalendarConnectUrl, getStripeConnectUrl, manualConnectStripe,
   disconnectGoogleCalendar, disconnectStripe,
   connectPayMe, disconnectPayMe,
+  connectPayPal, disconnectPayPal,
 } from '../../api/clients'
 import {
   connectAccounting, disconnectAccounting, getAccountingStatus,
@@ -54,6 +55,8 @@ export function TherapistSettings() {
   const [iCountForm, setICountForm] = useState({ company_id: '', username: '', api_key: '' })
   const [showPayMeForm, setShowPayMeForm] = useState(false)
   const [payMeForm, setPayMeForm] = useState({ seller_id: '', api_key: '' })
+  const [showPayPalForm, setShowPayPalForm] = useState(false)
+  const [payPalEmail, setPayPalEmail] = useState('')
 
   const { data: profile } = useQuery({
     queryKey: ['therapist-profile'],
@@ -196,6 +199,26 @@ export function TherapistSettings() {
       toast.success('PayMe disconnected — switched back to Stripe')
     },
     onError: () => toast.error('Failed to disconnect PayMe'),
+  })
+
+  const payPalConnectMutation = useMutation({
+    mutationFn: () => connectPayPal({ paypal_email: payPalEmail }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['therapist-profile'] })
+      toast.success('PayPal connected')
+      setShowPayPalForm(false)
+      setPayPalEmail('')
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? 'Failed to connect PayPal'),
+  })
+
+  const payPalDisconnectMutation = useMutation({
+    mutationFn: disconnectPayPal,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['therapist-profile'] })
+      toast.success('PayPal disconnected — switched back to Stripe')
+    },
+    onError: () => toast.error('Failed to disconnect PayPal'),
   })
 
   if (!profile) return <div className="p-8 text-gray-400">Loading...</div>
@@ -526,6 +549,83 @@ export function TherapistSettings() {
                   disabled={!manualStripeId || stripeManualMutation.isPending}
                   className="btn-primary px-4">
                   {stripeManualMutation.isPending ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* PayPal + Venmo */}
+          <div className="flex items-center justify-between py-3 border-t border-gray-100 mt-2">
+            <div className="flex items-center gap-3">
+              <CreditCard className="w-5 h-5 text-gray-500" />
+              <div>
+                <p className="text-sm font-medium text-gray-900">PayPal <span className="text-xs font-normal text-blue-600 ml-1">+ Venmo</span></p>
+                <p className="text-xs text-gray-500">Accept PayPal &amp; Venmo payments via your PayPal Business account</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {profile.paypal_connected ? (
+                <>
+                  <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                    <CheckCircle className="w-3.5 h-3.5" /> Active
+                  </span>
+                  {profile.paypal_email && (
+                    <span className="text-xs text-gray-400">{profile.paypal_email}</span>
+                  )}
+                  <button
+                    onClick={() => { setPayPalEmail(profile.paypal_email ?? ''); setShowPayPalForm(v => !v) }}
+                    className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 px-3 py-1.5 rounded-lg">
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => confirm('Disconnect PayPal? Clients will be billed via Stripe instead.') && payPalDisconnectMutation.mutate()}
+                    disabled={payPalDisconnectMutation.isPending}
+                    className="text-xs text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg">
+                    Disconnect
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="flex items-center gap-1 text-xs text-gray-400">
+                    <AlertCircle className="w-3.5 h-3.5" /> Not connected
+                  </span>
+                  <button
+                    onClick={() => setShowPayPalForm(v => !v)}
+                    className="btn-primary text-xs px-3 py-1.5">
+                    Connect
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* PayPal credentials form */}
+          {showPayPalForm && (
+            <div className="bg-blue-50 rounded-lg p-4 space-y-3">
+              <p className="text-sm text-blue-800 font-medium">
+                {profile.paypal_connected ? 'Update PayPal Business email' : 'Enter your PayPal Business email'}
+              </p>
+              <p className="text-xs text-blue-700">
+                Clients pay via PayPal's hosted checkout — Venmo appears automatically for eligible buyers.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  value={payPalEmail}
+                  onChange={e => setPayPalEmail(e.target.value)}
+                  placeholder="business@example.com"
+                  className="input flex-1 text-sm"
+                />
+                <button
+                  onClick={() => payPalConnectMutation.mutate()}
+                  disabled={!payPalEmail || payPalConnectMutation.isPending}
+                  className="btn-primary px-4 text-sm">
+                  {payPalConnectMutation.isPending
+                    ? 'Saving...'
+                    : profile.paypal_connected ? 'Update' : 'Save & Activate'}
+                </button>
+                <button onClick={() => setShowPayPalForm(false)} className="btn-secondary px-4 text-sm">
+                  Cancel
                 </button>
               </div>
             </div>

@@ -21,6 +21,8 @@ export interface Therapist {
   onboarding_completed: boolean
   payment_provider: string
   payme_seller_id?: string
+  paypal_email?: string
+  paypal_connected: boolean
   show_conversion_note: boolean
   created_at: string
 }

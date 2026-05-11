@@ -31,6 +31,12 @@ export const connectPayMe = (data: { seller_id: string; api_key: string }): Prom
 export const disconnectPayMe = (): Promise<void> =>
   api.delete('/onboarding/payme').then(r => r.data)
 
+export const connectPayPal = (data: { paypal_email: string }): Promise<Therapist> =>
+  api.post('/onboarding/paypal/connect', data).then(r => r.data)
+
+export const disconnectPayPal = (): Promise<void> =>
+  api.delete('/onboarding/paypal').then(r => r.data)
+
 export const listMyClients = (): Promise<TherapistClient[]> =>
   api.get('/therapist/clients').then(r => r.data)
 
