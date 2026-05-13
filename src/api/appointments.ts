@@ -34,6 +34,7 @@ export const updateAppointment = (id: string, data: {
   session_type?: string
   override_price?: number | null
   session_notes?: string | null
+  tax_exempt?: boolean | null
 }): Promise<Appointment> =>
   api.patch(`/therapist/appointments/${id}`, data).then(r => r.data)
 

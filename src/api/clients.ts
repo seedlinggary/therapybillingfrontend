@@ -46,6 +46,7 @@ export const createClient = (data: {
   default_session_price: number
   phone?: string
   notes?: string
+  tax_exempt?: boolean
 }): Promise<TherapistClient> =>
   api.post('/therapist/clients', data).then(r => r.data)
 
@@ -59,6 +60,7 @@ export const updateClient = (clientId: string, data: {
   default_session_price?: number
   notes?: string
   is_active?: boolean
+  tax_exempt?: boolean
 }): Promise<TherapistClient> =>
   api.patch(`/therapist/clients/${clientId}`, data).then(r => r.data)
 
@@ -71,6 +73,7 @@ export const resendInvite = (clientId: string): Promise<void> =>
 export const updateClientBilling = (clientId: string, data: {
   billing_frequency?: string
   billing_anchor_day?: number | null
+  tax_exempt?: boolean
 }): Promise<void> =>
   api.patch(`/therapist/clients/${clientId}/billing`, data).then(r => r.data)
 

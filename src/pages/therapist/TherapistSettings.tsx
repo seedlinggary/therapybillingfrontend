@@ -559,7 +559,7 @@ export function TherapistSettings() {
             <div className="flex items-center gap-3">
               <CreditCard className="w-5 h-5 text-gray-500" />
               <div>
-                <p className="text-sm font-medium text-gray-900">PayPal <span className="text-xs font-normal text-blue-600 ml-1">+ Venmo</span></p>
+                <p className="text-sm font-medium text-gray-900">PayPal (Not working yet) <span className="text-xs font-normal text-blue-600 ml-1">+ Venmo</span></p>
                 <p className="text-xs text-gray-500">Accept PayPal &amp; Venmo payments via your PayPal Business account</p>
               </div>
             </div>
@@ -685,7 +685,7 @@ export function TherapistSettings() {
               <div className="flex items-center gap-3">
                 <CreditCard className="w-5 h-5 text-gray-500" />
                 <div>
-                  <p className="text-sm font-medium text-gray-900">PayMe (פייMי)</p>
+                  <p className="text-sm font-medium text-gray-900">PayMe (פייMי) (Not working yet)</p>
                   <p className="text-xs text-gray-500">Accept card &amp; Bit payments via PayMe</p>
                 </div>
               </div>
@@ -795,7 +795,7 @@ export function TherapistSettings() {
                   />
                 </div>
                 <div>
-                  <label className="label text-xs">API Key / Password</label>
+                  <label className="label text-xs">Password</label>
                   <input
                     type="password"
                     value={iCountForm.api_key}

@@ -3,13 +3,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 import {
-  listDocuments, resendDocumentEmail, cancelDocument,
+  listDocuments, resendDocumentEmail, cancelDocument, deleteDocument,
   createManualReceipt, getMonthlyReport, downloadDocumentsCsv,
   listAuditLogs,
 } from '../../api/accounting'
 import { getMyTherapistProfile } from '../../api/clients'
 import {
-  Download, Mail, XCircle, Plus, FileText,
+  Download, Mail, XCircle, Trash2, Plus, FileText,
   BarChart2, ChevronDown, ChevronRight, AlertCircle,
 } from 'lucide-react'
 import type { AccountingDocument, AuditLog } from '../../types'
@@ -214,12 +214,23 @@ export function TherapistDocuments() {
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? 'Failed to create receipt'),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteDocument(id),
+    onSuccess: () => { invalidate(); toast.success('Document deleted') },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? 'Delete failed'),
+  })
+
   const handleCancel = (doc: AccountingDocument) => {
     const msg = isIL
       ? 'Cancel this document? A credit note will be issued automatically (Israeli law requires this).'
       : 'Cancel this document?'
     if (!confirm(msg)) return
     cancelMutation.mutate({ id: doc.id, creditNote: isIL })
+  }
+
+  const handleDelete = (doc: AccountingDocument) => {
+    if (!confirm('Delete this document record? This only removes it from your records, it does not cancel it in iCount.')) return
+    deleteMutation.mutate(doc.id)
   }
 
   return (
@@ -355,6 +366,13 @@ export function TherapistDocuments() {
                                     <XCircle className="w-4 h-4" />
                                   </button>
                                 </>
+                              )}
+                              {(doc.status === 'failed' || doc.status === 'canceled') && (
+                                <button onClick={() => handleDelete(doc)}
+                                  title="Delete record"
+                                  className="text-red-400 hover:text-red-600">
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
                               )}
                               {doc.status === 'failed' && (
                                 <span

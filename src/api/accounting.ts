@@ -43,6 +43,9 @@ export const resendDocumentEmail = (id: string): Promise<void> =>
 export const cancelDocument = (id: string, issueCreditNote = false): Promise<{ ok: boolean; credit_note_id?: string }> =>
   api.post(`/documents/${id}/cancel`, null, { params: { issue_credit_note: issueCreditNote } }).then(r => r.data)
 
+export const deleteDocument = (id: string): Promise<{ ok: boolean }> =>
+  api.delete(`/documents/${id}`).then(r => r.data)
+
 export interface ManualReceiptPayload {
   invoice_id?: string
   amount: number

@@ -50,6 +50,7 @@ export interface TherapistClient {
   client_is_active: boolean
   billing_frequency: BillingFrequency
   billing_anchor_day?: number
+  tax_exempt: boolean
   created_at: string
 }
 
@@ -75,6 +76,7 @@ export interface Appointment {
   has_invoice: boolean
   billed: boolean
   recurrence_id?: string
+  tax_exempt?: boolean
   created_at: string
 }
 

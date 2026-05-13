@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -23,6 +23,7 @@ const createSchema = z.object({
   end_time: z.string().min(1),
   session_type: z.string().default('Individual'),
   override_price: z.preprocess(v => (v === '' || v === null ? undefined : v), z.coerce.number().optional()),
+  tax_exempt: z.boolean().optional(),
 })
 type CreateForm = z.infer<typeof createSchema>
 
@@ -32,6 +33,7 @@ const editSchema = z.object({
   session_type: z.string().default('Individual'),
   override_price: z.preprocess(v => (v === '' || v === null ? undefined : v), z.coerce.number().optional()),
   session_notes: z.string().optional(),
+  tax_exempt: z.boolean().optional(),
 })
 type EditForm = z.infer<typeof editSchema>
 
@@ -47,6 +49,7 @@ const recurringSchema = z.object({
   duration_minutes: z.coerce.number().int().min(15).max(480),
   session_type: z.string().default('Individual'),
   override_price: z.preprocess(v => (v === '' || v === null ? undefined : v), z.coerce.number().optional()),
+  tax_exempt: z.boolean().optional(),
 })
 type RecurringForm = z.infer<typeof recurringSchema>
 
@@ -79,7 +82,7 @@ function EditModal({
 }) {
   const qc = useQueryClient()
 
-  const { register, handleSubmit, formState: { errors, isDirty } } = useForm<EditForm>({
+  const { register, handleSubmit, watch: editWatch, setValue: editSetValue, formState: { errors, isDirty, dirtyFields } } = useForm<EditForm>({
     resolver: zodResolver(editSchema),
     defaultValues: {
       start_time: toDatetimeLocal(appt.start_time),
@@ -87,14 +90,18 @@ function EditModal({
       session_type: appt.session_type ?? 'Individual',
       override_price: appt.override_price ?? undefined,
       session_notes: appt.session_notes ?? '',
+      tax_exempt: appt.tax_exempt ?? false,
     },
   })
+  const editTaxExempt = editWatch('tax_exempt')
 
   const saveMutation = useMutation({
     mutationFn: (d: EditForm) => updateAppointment(appt.id, {
-      start_time: new Date(d.start_time).toISOString(),
-      end_time: new Date(d.end_time).toISOString(),
+      // Only send times if the user actually changed them — avoids UTC/local-time drift on every save
+      ...(dirtyFields.start_time && { start_time: new Date(d.start_time).toISOString() }),
+      ...(dirtyFields.end_time   && { end_time:   new Date(d.end_time).toISOString() }),
       session_type: d.session_type,
+      tax_exempt: d.tax_exempt,
       override_price: d.override_price !== undefined ? d.override_price : null,
       session_notes: d.session_notes || undefined,
     }),
@@ -172,6 +179,14 @@ function EditModal({
             <input {...register('override_price')} type="number" step="0.01" className="input"
               placeholder="Leave blank for default" />
           </div>
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <div className="relative flex-shrink-0">
+              <input type="checkbox" className="sr-only" checked={editTaxExempt ?? false} onChange={e => editSetValue('tax_exempt', e.target.checked, { shouldDirty: true })} />
+              <div className={`w-10 h-6 rounded-full transition-colors ${editTaxExempt ? 'bg-indigo-600' : 'bg-gray-300'}`} />
+              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${editTaxExempt ? 'translate-x-5' : 'translate-x-1'}`} />
+            </div>
+            <span className="text-sm text-gray-700">VAT / Tax Exempt</span>
+          </label>
           <div>
             <label className="label">Session Notes</label>
             <textarea {...register('session_notes')} className="input h-20 resize-none"
@@ -250,10 +265,18 @@ export function TherapistAppointments() {
   const activeClients = clients.filter(c => c.is_active)
 
   // ── Single appointment form ───────────────────────────────────────────────
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateForm>({
+  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<CreateForm>({
     resolver: zodResolver(createSchema),
-    defaultValues: { session_type: 'Individual' },
+    defaultValues: { session_type: 'Individual', tax_exempt: false },
   })
+  const selectedClientId = watch('client_id')
+  const createTaxExempt = watch('tax_exempt')
+  const selectedClient = clients.find(c => c.client_id === selectedClientId)
+
+  // Pre-fill tax_exempt from the selected client's default whenever client changes
+  useEffect(() => {
+    if (selectedClient) setValue('tax_exempt', selectedClient.tax_exempt ?? false)
+  }, [selectedClientId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const createMutation = useMutation({
     mutationFn: createAppointment,
@@ -268,15 +291,23 @@ export function TherapistAppointments() {
   // ── Recurring form ────────────────────────────────────────────────────────
   const {
     register: rReg, handleSubmit: rSubmit, watch: rWatch, reset: rReset,
-    formState: { errors: rErr },
+    setValue: rSetValue, formState: { errors: rErr },
   } = useForm<RecurringForm>({
     resolver: zodResolver(recurringSchema),
     defaultValues: {
       recurrence_type: 'weekly', end_by: 'count', occurrence_count: 12,
       start_hour: 10, start_minute: 0, duration_minutes: 50, session_type: 'Individual',
+      tax_exempt: false,
     },
   })
   const endBy = rWatch('end_by')
+  const rClientId = rWatch('client_id')
+  const rTaxExempt = rWatch('tax_exempt')
+  const rSelectedClient = clients.find(c => c.client_id === rClientId)
+
+  useEffect(() => {
+    if (rSelectedClient) rSetValue('tax_exempt', rSelectedClient.tax_exempt ?? false)
+  }, [rClientId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const recurringMutation = useMutation({
     mutationFn: (d: RecurringForm) => createRecurringAppointments({
@@ -394,6 +425,14 @@ export function TherapistAppointments() {
                   {activeClients.map(c => <option key={c.client_id} value={c.client_id}>{c.name}</option>)}
                 </select>
                 {errors.client_id && <p className="text-red-500 text-xs mt-1">{errors.client_id.message}</p>}
+                {selectedClient && (
+                  <div className="mt-1.5 flex items-center gap-2 text-xs text-gray-500">
+                    <span>Default price: {sym}{selectedClient.default_session_price.toFixed(2)}</span>
+                    {selectedClient.tax_exempt && (
+                      <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-medium">VAT Exempt</span>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -416,6 +455,14 @@ export function TherapistAppointments() {
                 <input {...register('override_price')} type="number" step="0.01" className="input"
                   placeholder="Leave blank for default" />
               </div>
+              <label className="flex items-center gap-3 cursor-pointer select-none">
+                <div className="relative flex-shrink-0">
+                  <input type="checkbox" className="sr-only" checked={createTaxExempt ?? false} onChange={e => setValue('tax_exempt', e.target.checked)} />
+                  <div className={`w-10 h-6 rounded-full transition-colors ${createTaxExempt ? 'bg-indigo-600' : 'bg-gray-300'}`} />
+                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${createTaxExempt ? 'translate-x-5' : 'translate-x-1'}`} />
+                </div>
+                <span className="text-sm text-gray-700">VAT / Tax Exempt <span className="text-xs text-gray-400">(pre-filled from client default)</span></span>
+              </label>
               <div className="flex gap-3 pt-2">
                 <button type="submit" disabled={createMutation.isPending} className="btn-primary flex-1">
                   {createMutation.isPending ? 'Scheduling...' : 'Schedule'}
@@ -508,6 +555,15 @@ export function TherapistAppointments() {
                     className="input" placeholder="Default" />
                 </div>
               </div>
+
+              <label className="flex items-center gap-3 cursor-pointer select-none">
+                <div className="relative flex-shrink-0">
+                  <input type="checkbox" className="sr-only" checked={rTaxExempt ?? false} onChange={e => rSetValue('tax_exempt', e.target.checked)} />
+                  <div className={`w-10 h-6 rounded-full transition-colors ${rTaxExempt ? 'bg-indigo-600' : 'bg-gray-300'}`} />
+                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${rTaxExempt ? 'translate-x-5' : 'translate-x-1'}`} />
+                </div>
+                <span className="text-sm text-gray-700">VAT / Tax Exempt <span className="text-xs text-gray-400">(pre-filled from client default)</span></span>
+              </label>
 
               <div className="flex gap-3 pt-2">
                 <button type="submit" disabled={recurringMutation.isPending} className="btn-primary flex-1">

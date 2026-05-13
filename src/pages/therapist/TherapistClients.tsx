@@ -14,6 +14,7 @@ const createSchema = z.object({
   default_session_price: z.coerce.number().min(0),
   phone: z.string().optional(),
   notes: z.string().optional(),
+  tax_exempt: z.boolean().default(false),
 })
 type CreateForm = z.infer<typeof createSchema>
 
@@ -44,6 +45,7 @@ function EditClientModal({
     default_session_price: client.default_session_price,
     notes: client.notes ?? '',
     is_active: client.is_active,
+    tax_exempt: client.tax_exempt ?? false,
   })
 
   const mutation = useMutation({
@@ -54,6 +56,7 @@ function EditClientModal({
       default_session_price: form.default_session_price,
       notes: form.notes || undefined,
       is_active: form.is_active,
+      tax_exempt: form.tax_exempt,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['clients'] })
@@ -106,6 +109,18 @@ function EditClientModal({
           <label htmlFor="is_active" className="text-sm text-gray-700">Active (include in scheduling &amp; billing)</label>
         </div>
 
+        <label className="flex items-center gap-3 cursor-pointer select-none">
+          <div className="relative flex-shrink-0">
+            <input type="checkbox" className="sr-only" checked={form.tax_exempt} onChange={e => setForm(f => ({ ...f, tax_exempt: e.target.checked }))} />
+            <div className={`w-10 h-6 rounded-full transition-colors ${form.tax_exempt ? 'bg-indigo-600' : 'bg-gray-300'}`} />
+            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.tax_exempt ? 'translate-x-5' : 'translate-x-1'}`} />
+          </div>
+          <div>
+            <span className="text-sm font-medium text-gray-700">VAT / Tax Exempt</span>
+            <p className="text-xs text-gray-500"> This customer is VAT exempt: {form.tax_exempt ? "Yes" : "No"}</p>
+          </div>
+        </label>
+
         <div className="flex gap-3 pt-1">
           <button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="btn-primary flex-1">
             {mutation.isPending ? 'Saving...' : 'Save Changes'}
@@ -125,11 +140,13 @@ function BillingModal({
   const qc = useQueryClient()
   const [freq, setFreq] = useState<BillingFrequency>(client.billing_frequency ?? 'same_day')
   const [anchorDay, setAnchorDay] = useState<number>(client.billing_anchor_day ?? 0)
+  const [taxExempt, setTaxExempt] = useState<boolean>(client.tax_exempt ?? false)
 
   const mutation = useMutation({
     mutationFn: () => updateClientBilling(client.client_id, {
       billing_frequency: freq,
       billing_anchor_day: (freq === 'weekly' || freq === 'monthly') ? anchorDay : null,
+      tax_exempt: taxExempt,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['clients'] })
@@ -183,6 +200,20 @@ function BillingModal({
             {freq === 'monthly' && `All completed sessions are batched into one invoice on the ${anchorDay || 1}${ordinal(anchorDay || 1)} of each month.`}
           </div>
 
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <div className="relative">
+              <input
+                type="checkbox"
+                className="sr-only"
+                checked={taxExempt}
+                onChange={e => setTaxExempt(e.target.checked)}
+              />
+              <div className={`w-10 h-6 rounded-full transition-colors ${taxExempt ? 'bg-indigo-600' : 'bg-gray-300'}`} />
+              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${taxExempt ? 'translate-x-5' : 'translate-x-1'}`} />
+            </div>
+            <span className="text-sm text-gray-700">Tax / VAT exempt</span>
+          </label>
+
           <div className="flex gap-3 pt-1">
             <button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="btn-primary flex-1">
               {mutation.isPending ? 'Saving...' : 'Save'}
@@ -216,9 +247,11 @@ export function TherapistClients() {
     queryFn: listMyClients,
   })
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<CreateForm>({
+  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<CreateForm>({
     resolver: zodResolver(createSchema),
+    defaultValues: { tax_exempt: false },
   })
+  const createTaxExempt = watch('tax_exempt')
 
   const createMutation = useMutation({
     mutationFn: createClient,
@@ -274,6 +307,17 @@ export function TherapistClients() {
                 <label className="label">Private Notes</label>
                 <textarea {...register('notes')} className="input h-20 resize-none" placeholder="Internal notes..." />
               </div>
+              <label className="flex items-center gap-3 cursor-pointer select-none py-1">
+                <div className="relative flex-shrink-0">
+                  <input type="checkbox" className="sr-only" checked={createTaxExempt} onChange={e => setValue('tax_exempt', e.target.checked)} />
+                  <div className={`w-10 h-6 rounded-full transition-colors ${createTaxExempt ? 'bg-indigo-600' : 'bg-gray-300'}`} />
+                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${createTaxExempt ? 'translate-x-5' : 'translate-x-1'}`} />
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-gray-700">VAT / Tax Exempt</span>
+                  <p className="text-xs text-gray-500">This client's sessions will not have VAT charged by default</p>
+                </div>
+              </label>
               <div className="flex gap-3 pt-2">
                 <button type="submit" disabled={createMutation.isPending} className="btn-primary flex-1">
                   {createMutation.isPending ? 'Adding...' : 'Add & Send Invite'}
@@ -332,7 +376,14 @@ export function TherapistClients() {
                     {sym}{client.default_session_price.toFixed(2)}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">
-                    {BILLING_LABELS[client.billing_frequency] ?? 'Same Day'}
+                    <div className="flex flex-col gap-1">
+                      <span>{BILLING_LABELS[client.billing_frequency] ?? 'Same Day'}</span>
+                      {client.tax_exempt && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 w-fit">
+                          VAT Exempt
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
