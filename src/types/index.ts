@@ -12,7 +12,6 @@ export interface Therapist {
   payment_instructions?: string
   country: string
   default_currency: string
-  ils_exchange_rate?: number
   default_session_price?: number
   default_billing_frequency: BillingFrequency
   default_billing_anchor_day?: number

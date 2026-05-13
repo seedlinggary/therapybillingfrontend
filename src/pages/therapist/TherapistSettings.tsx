@@ -25,7 +25,6 @@ interface SettingsForm {
   payment_instructions: string
   country: string
   default_currency: string
-  ils_exchange_rate: number
   default_session_price: number
   default_billing_frequency: BillingFrequency
   default_billing_anchor_day: number
@@ -97,7 +96,6 @@ export function TherapistSettings() {
         payment_instructions: profile.payment_instructions ?? '',
         country: profile.country ?? 'US',
         default_currency: profile.default_currency ?? 'USD',
-        ils_exchange_rate: profile.ils_exchange_rate ?? 3.70,
         default_session_price: profile.default_session_price ?? 0,
         default_billing_frequency: profile.default_billing_frequency ?? 'same_day',
         default_billing_anchor_day: profile.default_billing_anchor_day ?? 0,
@@ -287,23 +285,13 @@ export function TherapistSettings() {
 
             {/* Currency — IL therapists can bill in ILS or USD */}
             {watchedCountry === 'IL' && (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="label">Default Currency</label>
-                  <select {...register('default_currency')} className="input">
-                    <option value="ILS">₪ ILS — Israeli Shekel</option>
-                    <option value="USD">$ USD — US Dollar</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label">USD → ILS Rate</label>
-                  <input
-                    {...register('ils_exchange_rate', { valueAsNumber: true })}
-                    type="number" step="0.01" min="0" className="input"
-                    placeholder="3.70"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">Used to convert invoices for iCount (always ILS internally)</p>
-                </div>
+              <div>
+                <label className="label">Default Currency</label>
+                <select {...register('default_currency')} className="input">
+                  <option value="ILS">₪ ILS — Israeli Shekel</option>
+                  <option value="USD">$ USD — US Dollar</option>
+                </select>
+                <p className="text-xs text-gray-400 mt-1">USD invoices are converted to ILS at the live daily rate for iCount.</p>
               </div>
             )}
 
