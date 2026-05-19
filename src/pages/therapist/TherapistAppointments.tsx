@@ -19,22 +19,28 @@ import type { Appointment } from '../../types'
 
 const createSchema = z.object({
   client_id: z.string().min(1, 'Select a client'),
-  start_time: z.string().min(1),
-  end_time: z.string().min(1),
+  start_time: z.string().min(1, 'Required'),
+  end_time: z.string().min(1, 'Required'),
   session_type: z.string().default('Individual'),
   override_price: z.preprocess(v => (v === '' || v === null ? undefined : v), z.coerce.number().optional()),
   tax_exempt: z.boolean().optional(),
-})
+}).refine(
+  d => !d.start_time || !d.end_time || new Date(d.end_time) > new Date(d.start_time),
+  { message: 'End time must be after start time', path: ['end_time'] },
+)
 type CreateForm = z.infer<typeof createSchema>
 
 const editSchema = z.object({
-  start_time: z.string().min(1),
-  end_time: z.string().min(1),
+  start_time: z.string().min(1, 'Required'),
+  end_time: z.string().min(1, 'Required'),
   session_type: z.string().default('Individual'),
   override_price: z.preprocess(v => (v === '' || v === null ? undefined : v), z.coerce.number().optional()),
   session_notes: z.string().optional(),
   tax_exempt: z.boolean().optional(),
-})
+}).refine(
+  d => !d.start_time || !d.end_time || new Date(d.end_time) > new Date(d.start_time),
+  { message: 'End time must be after start time', path: ['end_time'] },
+)
 type EditForm = z.infer<typeof editSchema>
 
 const recurringSchema = z.object({
@@ -271,12 +277,25 @@ export function TherapistAppointments() {
   })
   const selectedClientId = watch('client_id')
   const createTaxExempt = watch('tax_exempt')
+  const watchedStartTime = watch('start_time')
   const selectedClient = clients.find(c => c.client_id === selectedClientId)
 
   // Pre-fill tax_exempt from the selected client's default whenever client changes
   useEffect(() => {
     if (selectedClient) setValue('tax_exempt', selectedClient.tax_exempt ?? false)
   }, [selectedClientId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-set end_time to start_time + 50 min when start_time changes and end is blank/before start
+  useEffect(() => {
+    if (!watchedStartTime) return
+    const start = new Date(watchedStartTime)
+    if (isNaN(start.getTime())) return
+    const currentEnd = watch('end_time')
+    if (!currentEnd || new Date(currentEnd) <= start) {
+      const end = new Date(start.getTime() + 50 * 60 * 1000)
+      setValue('end_time', end.toISOString().slice(0, 16))
+    }
+  }, [watchedStartTime]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const createMutation = useMutation({
     mutationFn: createAppointment,
@@ -362,7 +381,7 @@ export function TherapistAppointments() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       {/* Edit modal */}
       {editingAppt && (
         <EditModal appt={editingAppt} onClose={() => setEditingAppt(null)} currencySymbol={sym} />
@@ -438,10 +457,12 @@ export function TherapistAppointments() {
                 <div>
                   <label className="label">Start *</label>
                   <input {...register('start_time')} type="datetime-local" className="input" />
+                  {errors.start_time && <p className="text-red-500 text-xs mt-1">{errors.start_time.message}</p>}
                 </div>
                 <div>
                   <label className="label">End *</label>
                   <input {...register('end_time')} type="datetime-local" className="input" />
+                  {errors.end_time && <p className="text-red-500 text-xs mt-1">{errors.end_time.message}</p>}
                 </div>
               </div>
               <div>
@@ -584,7 +605,7 @@ export function TherapistAppointments() {
       )}
 
       {viewMode === 'list' && (
-        <div className="card p-0 overflow-hidden">
+        <div className="card p-0 overflow-x-auto">
           {isLoading ? (
             <div className="p-8 text-center text-gray-400">Loading...</div>
           ) : appointments.length === 0 ? (

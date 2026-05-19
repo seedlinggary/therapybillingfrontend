@@ -9,7 +9,7 @@ import type {
 export interface ConnectAccountingPayload {
   provider: string
   company_id: string
-  username: string
+  username?: string   // iCount only; omit for Green Invoice
   api_key: string
 }
 
@@ -19,7 +19,7 @@ export const connectAccounting = (data: ConnectAccountingPayload): Promise<Accou
 export const disconnectAccounting = (provider: string): Promise<void> =>
   api.delete('/integrations/accounting/disconnect', { params: { provider } }).then(r => r.data)
 
-export const getAccountingStatus = (): Promise<AccountingIntegration | null> =>
+export const getAccountingStatus = (): Promise<AccountingIntegration[]> =>
   api.get('/integrations/accounting/status').then(r => r.data)
 
 // ── Documents ─────────────────────────────────────────────────────────────────

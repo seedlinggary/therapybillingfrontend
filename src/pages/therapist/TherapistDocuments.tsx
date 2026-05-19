@@ -234,7 +234,7 @@ export function TherapistDocuments() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">
           Documents
@@ -286,7 +286,7 @@ export function TherapistDocuments() {
             </select>
           </div>
 
-          <div className="card p-0 overflow-hidden">
+          <div className="card p-0 overflow-x-auto">
             {docsLoading ? (
               <div className="p-8 text-center text-gray-400">Loading...</div>
             ) : docs.length === 0 ? (
@@ -458,7 +458,7 @@ export function TherapistDocuments() {
                 )}
               </div>
 
-              <div className="card p-0 overflow-hidden">
+              <div className="card p-0 overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
@@ -493,7 +493,7 @@ export function TherapistDocuments() {
 
       {/* ── Audit Log tab ── */}
       {tab === 'audit' && (
-        <div className="card p-0 overflow-hidden">
+        <div className="card p-0 overflow-x-auto">
           {auditLoading ? (
             <div className="p-8 text-center text-gray-400">Loading...</div>
           ) : auditLogs.length === 0 ? (

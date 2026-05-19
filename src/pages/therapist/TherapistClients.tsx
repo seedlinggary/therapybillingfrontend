@@ -270,7 +270,7 @@ export function TherapistClients() {
   })
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Clients</h1>
         <button onClick={() => setShowCreate(true)} className="btn-primary flex items-center gap-2">
@@ -342,7 +342,7 @@ export function TherapistClients() {
       )}
 
       {/* Client table */}
-      <div className="card p-0 overflow-hidden">
+      <div className="card p-0 overflow-x-auto">
         {isLoading ? (
           <div className="p-8 text-center text-gray-400">Loading...</div>
         ) : clients.length === 0 ? (

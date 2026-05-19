@@ -130,6 +130,9 @@ export function TherapistInvoices() {
   const [statusFilter, setStatusFilter] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [selectedApptId, setSelectedApptId] = useState('')
+  const [markPaidInvoice, setMarkPaidInvoice] = useState<Invoice | null>(null)
+  const [markPaidMethod, setMarkPaidMethod] = useState('cash')
+  const [markPaidDate, setMarkPaidDate] = useState(() => new Date().toISOString().slice(0, 10))
 
   const { data: profile } = useQuery({ queryKey: ['therapist-profile'], queryFn: getMyTherapistProfile })
   const profileSym = profile?.default_currency === 'ILS' ? '₪' : '$'
@@ -180,8 +183,13 @@ export function TherapistInvoices() {
   })
 
   const markPaidMutation = useMutation({
-    mutationFn: markInvoicePaid,
-    onSuccess: () => { invalidate(); toast.success('Invoice marked as paid') },
+    mutationFn: ({ id, method, date }: { id: string; method: string; date: string }) =>
+      markInvoicePaid(id, { payment_method: method, payment_date: date }),
+    onSuccess: () => {
+      invalidate()
+      toast.success('Invoice marked as paid')
+      setMarkPaidInvoice(null)
+    },
     onError: () => toast.error('Failed to mark invoice as paid'),
   })
 
@@ -209,7 +217,7 @@ export function TherapistInvoices() {
   })
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Invoices</h1>
         <button onClick={() => setShowCreate(true)} className="btn-primary flex items-center gap-2">
@@ -259,8 +267,45 @@ export function TherapistInvoices() {
         </div>
       )}
 
+      {/* Mark as Paid modal */}
+      {markPaidInvoice && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm space-y-4">
+            <h2 className="text-lg font-semibold text-gray-900">Mark Invoice as Paid</h2>
+            <p className="text-sm text-gray-500">Invoice #{markPaidInvoice.invoice_number} — {markPaidInvoice.client_name}</p>
+            <div>
+              <label className="label">Payment Date</label>
+              <input
+                type="date"
+                value={markPaidDate}
+                onChange={e => setMarkPaidDate(e.target.value)}
+                className="input"
+              />
+            </div>
+            <div>
+              <label className="label">Payment Method</label>
+              <select value={markPaidMethod} onChange={e => setMarkPaidMethod(e.target.value)} className="input">
+                <option value="cash">Cash</option>
+                <option value="bank_transfer">Bank Transfer</option>
+                <option value="credit_card">Credit Card</option>
+              </select>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => markPaidMutation.mutate({ id: markPaidInvoice.id, method: markPaidMethod, date: markPaidDate })}
+                disabled={markPaidMutation.isPending}
+                className="btn-primary flex-1"
+              >
+                {markPaidMutation.isPending ? 'Saving...' : 'Confirm Payment'}
+              </button>
+              <button onClick={() => setMarkPaidInvoice(null)} className="btn-secondary flex-1">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
-      <div className="card p-0 overflow-hidden">
+      <div className="card p-0 overflow-x-auto">
         {isLoading ? (
           <div className="p-8 text-center text-gray-400">Loading...</div>
         ) : invoices.length === 0 ? (
@@ -285,7 +330,7 @@ export function TherapistInvoices() {
                   inv={inv}
                   onVoid={() => confirm('Void this invoice?') && voidMutation.mutate(inv.id)}
                   onDelete={() => confirm('Delete this invoice? The appointment(s) will become billable again.') && deleteMutation.mutate(inv.id)}
-                  onMarkPaid={() => confirm('Mark this invoice as manually paid?') && markPaidMutation.mutate(inv.id)}
+                  onMarkPaid={() => { setMarkPaidDate(new Date().toISOString().slice(0, 10)); setMarkPaidMethod('cash'); setMarkPaidInvoice(inv) }}
                   onResend={() => resendMutation.mutate(inv.id)}
                   onVerifyStripe={() => verifyMutation.mutate(inv.id)}
                   onDownload={() => downloadTherapistInvoicePdf(inv.id, inv.invoice_number)}

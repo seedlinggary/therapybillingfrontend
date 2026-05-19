@@ -22,7 +22,7 @@ export function ClientSessions() {
   })
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">My Sessions</h1>
         <p className="text-gray-500 mt-1">View all your therapy sessions</p>
@@ -42,7 +42,7 @@ export function ClientSessions() {
         ))}
       </div>
 
-      <div className="card p-0 overflow-hidden">
+      <div className="card p-0 overflow-x-auto">
         {isLoading ? (
           <div className="p-8 text-center text-gray-400">Loading...</div>
         ) : appointments.length === 0 ? (

@@ -22,8 +22,11 @@ export const voidInvoice = (id: string): Promise<Invoice> =>
 export const deleteInvoice = (id: string): Promise<void> =>
   api.delete(`/therapist/invoices/${id}`).then(r => r.data)
 
-export const markInvoicePaid = (id: string): Promise<Invoice> =>
-  api.post(`/therapist/invoices/${id}/mark-paid`).then(r => r.data)
+export const markInvoicePaid = (
+  id: string,
+  data?: { payment_method?: string; payment_date?: string }
+): Promise<Invoice> =>
+  api.post(`/therapist/invoices/${id}/mark-paid`, data ?? {}).then(r => r.data)
 
 export const resendInvoiceEmail = (id: string): Promise<void> =>
   api.post(`/therapist/invoices/${id}/resend`).then(r => r.data)

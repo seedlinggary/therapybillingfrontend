@@ -52,6 +52,8 @@ export function TherapistSettings() {
   const [showManualStripe, setShowManualStripe] = useState(false)
   const [showICountForm, setShowICountForm] = useState(false)
   const [iCountForm, setICountForm] = useState({ company_id: '', username: '', api_key: '' })
+  const [showGreenInvoiceForm, setShowGreenInvoiceForm] = useState(false)
+  const [greenInvoiceForm, setGreenInvoiceForm] = useState({ api_key_id: '', api_key_secret: '' })
   const [showPayMeForm, setShowPayMeForm] = useState(false)
   const [payMeForm, setPayMeForm] = useState({ seller_id: '', api_key: '' })
   const [showPayPalForm, setShowPayPalForm] = useState(false)
@@ -64,11 +66,15 @@ export function TherapistSettings() {
 
   const isIL = (profile?.country || 'US').toUpperCase() === 'IL'
 
-  const { data: accountingStatus } = useQuery({
+  const { data: accountingStatuses = [] } = useQuery({
     queryKey: ['accounting-status'],
     queryFn: getAccountingStatus,
     enabled: isIL,
   })
+  const iCountStatus = accountingStatuses.find(s => s.provider === 'icount')
+  const greenInvoiceStatus = accountingStatuses.find(s => s.provider === 'green_invoice')
+  // The "in use" provider is the most recently updated active one (matches factory logic)
+  const activeProvider = accountingStatuses[0]?.provider ?? null
 
   const { register, handleSubmit, reset, watch, formState: { isDirty } } = useForm<SettingsForm>()
   const billingFreq = watch('default_billing_frequency')
@@ -179,6 +185,31 @@ export function TherapistSettings() {
     onError: () => toast.error('Failed to disconnect iCount'),
   })
 
+  const greenInvoiceConnectMutation = useMutation({
+    mutationFn: () => connectAccounting({
+      provider: 'green_invoice',
+      company_id: greenInvoiceForm.api_key_id,
+      username: '',
+      api_key: greenInvoiceForm.api_key_secret,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['accounting-status'] })
+      toast.success('Green Invoice connected')
+      setShowGreenInvoiceForm(false)
+      setGreenInvoiceForm({ api_key_id: '', api_key_secret: '' })
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? 'Connection failed'),
+  })
+
+  const greenInvoiceDisconnectMutation = useMutation({
+    mutationFn: () => disconnectAccounting('green_invoice'),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['accounting-status'] })
+      toast.success('Green Invoice disconnected')
+    },
+    onError: () => toast.error('Failed to disconnect Green Invoice'),
+  })
+
   const payMeConnectMutation = useMutation({
     mutationFn: () => connectPayMe(payMeForm),
     onSuccess: () => {
@@ -238,7 +269,7 @@ export function TherapistSettings() {
   }
 
   return (
-    <div className="p-8 max-w-2xl space-y-6">
+    <div className="p-4 md:p-8 max-w-2xl space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
 
       <form onSubmit={handleSubmit(d => saveMutation.mutate(d))} className="space-y-6">
@@ -619,27 +650,42 @@ export function TherapistSettings() {
             </div>
           )}
 
+          {/* Both connected — explain which is in use */}
+          {isIL && iCountStatus && greenInvoiceStatus && (
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mt-2 text-xs text-amber-800">
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>
+                Both iCount and Green Invoice are connected. The one most recently saved is used for billing — currently <strong>{activeProvider === 'icount' ? 'iCount' : 'Green Invoice'}</strong>.
+                To switch, save the other provider's credentials again or disconnect the one you don't want.
+              </span>
+            </div>
+          )}
+
           {/* iCount — Israel only */}
           {isIL && (
             <div className="flex items-center justify-between py-3 border-t border-gray-100 mt-2">
               <div className="flex items-center gap-3">
                 <BookOpen className="w-5 h-5 text-gray-500" />
                 <div>
-                  <p className="text-sm font-medium text-gray-900">iCount (חשבונית ירוקה)</p>
-                  <p className="text-xs text-gray-500">Required for legally-compliant Israeli invoicing</p>
+                  <p className="text-sm font-medium text-gray-900">iCount</p>
+                  <p className="text-xs text-gray-500">Israeli invoicing — tax invoices, receipts, VAT</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                {accountingStatus?.is_active ? (
+                {iCountStatus ? (
                   <>
                     <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
                       <CheckCircle className="w-3.5 h-3.5" /> Connected
                     </span>
-                    <span className="text-xs text-gray-400 font-mono">{accountingStatus.company_id}</span>
+                    {activeProvider === 'icount' && (
+                      <span className="text-xs bg-primary-100 text-primary-700 font-medium px-2 py-0.5 rounded-full">In use</span>
+                    )}
+                    <span className="text-xs text-gray-400 font-mono">{iCountStatus.company_id}</span>
                     <button
                       onClick={() => {
-                        setICountForm(f => ({ ...f, company_id: accountingStatus.company_id ?? '' }))
+                        setICountForm(f => ({ ...f, company_id: iCountStatus.company_id ?? '' }))
                         setShowICountForm(v => !v)
+                        setShowGreenInvoiceForm(false)
                       }}
                       className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 px-3 py-1.5 rounded-lg">
                       Edit
@@ -657,7 +703,7 @@ export function TherapistSettings() {
                       <AlertCircle className="w-3.5 h-3.5" /> Not connected
                     </span>
                     <button
-                      onClick={() => setShowICountForm(v => !v)}
+                      onClick={() => { setShowICountForm(v => !v); setShowGreenInvoiceForm(false) }}
                       className="btn-primary text-xs px-3 py-1.5">
                       Connect
                     </button>
@@ -761,7 +807,7 @@ export function TherapistSettings() {
           {isIL && showICountForm && (
             <div className="bg-blue-50 rounded-lg p-4 space-y-3">
               <p className="text-sm text-blue-800 font-medium">
-                {accountingStatus?.is_active ? 'Update iCount credentials' : 'Enter your iCount credentials'}
+                {iCountStatus ? 'Update iCount credentials' : 'Enter your iCount credentials'}
               </p>
               <div className="grid grid-cols-3 gap-2">
                 <div>
@@ -798,11 +844,100 @@ export function TherapistSettings() {
                   onClick={() => iCountConnectMutation.mutate()}
                   disabled={!iCountForm.company_id || !iCountForm.username || !iCountForm.api_key || iCountConnectMutation.isPending}
                   className="btn-primary text-sm px-4">
-                  {iCountConnectMutation.isPending
-                    ? 'Saving...'
-                    : accountingStatus?.is_active ? 'Update Credentials' : 'Save & Connect'}
+                  {iCountConnectMutation.isPending ? 'Saving...' : iCountStatus ? 'Update Credentials' : 'Save & Connect'}
                 </button>
                 <button onClick={() => setShowICountForm(false)} className="btn-secondary text-sm px-4">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Green Invoice — Israel only */}
+          {isIL && (
+            <div className="flex items-center justify-between py-3 border-t border-gray-100 mt-2">
+              <div className="flex items-center gap-3">
+                <BookOpen className="w-5 h-5 text-green-600" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Green Invoice (חשבונית ירוקה)</p>
+                  <p className="text-xs text-gray-500">Israeli invoicing — tax invoices, receipts, VAT</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {greenInvoiceStatus ? (
+                  <>
+                    <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                      <CheckCircle className="w-3.5 h-3.5" /> Connected
+                    </span>
+                    {activeProvider === 'green_invoice' && (
+                      <span className="text-xs bg-primary-100 text-primary-700 font-medium px-2 py-0.5 rounded-full">In use</span>
+                    )}
+                    <button
+                      onClick={() => { setShowGreenInvoiceForm(v => !v); setShowICountForm(false) }}
+                      className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 px-3 py-1.5 rounded-lg">
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => confirm('Disconnect Green Invoice?') && greenInvoiceDisconnectMutation.mutate()}
+                      disabled={greenInvoiceDisconnectMutation.isPending}
+                      className="text-xs text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg">
+                      Disconnect
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex items-center gap-1 text-xs text-gray-400">
+                      <AlertCircle className="w-3.5 h-3.5" /> Not connected
+                    </span>
+                    <button
+                      onClick={() => { setShowGreenInvoiceForm(v => !v); setShowICountForm(false) }}
+                      className="btn-primary text-xs px-3 py-1.5">
+                      Connect
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Green Invoice credentials form */}
+          {isIL && showGreenInvoiceForm && (
+            <div className="bg-green-50 rounded-lg p-4 space-y-3">
+              <p className="text-sm text-green-800 font-medium">
+                {greenInvoiceStatus ? 'Update Green Invoice credentials' : 'Enter your Green Invoice API credentials'}
+              </p>
+              <p className="text-xs text-green-700">
+                Find your API Key ID and Secret in Green Invoice → Settings → Developer Tools → API Keys.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="label text-xs">API Key ID</label>
+                  <input
+                    value={greenInvoiceForm.api_key_id}
+                    onChange={e => setGreenInvoiceForm(f => ({ ...f, api_key_id: e.target.value }))}
+                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                    className="input text-sm font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="label text-xs">API Key Secret</label>
+                  <input
+                    type="password"
+                    value={greenInvoiceForm.api_key_secret}
+                    onChange={e => setGreenInvoiceForm(f => ({ ...f, api_key_secret: e.target.value }))}
+                    placeholder="••••••••"
+                    className="input text-sm"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => greenInvoiceConnectMutation.mutate()}
+                  disabled={!greenInvoiceForm.api_key_id || !greenInvoiceForm.api_key_secret || greenInvoiceConnectMutation.isPending}
+                  className="btn-primary text-sm px-4">
+                  {greenInvoiceConnectMutation.isPending ? 'Saving...' : greenInvoiceStatus ? 'Update Credentials' : 'Save & Connect'}
+                </button>
+                <button onClick={() => setShowGreenInvoiceForm(false)} className="btn-secondary text-sm px-4">
                   Cancel
                 </button>
               </div>

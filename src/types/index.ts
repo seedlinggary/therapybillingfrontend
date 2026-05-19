@@ -114,7 +114,7 @@ export interface Invoice {
 
 export type DocumentStatus = 'pending' | 'issued' | 'canceled' | 'failed'
 export type DocumentType = 'invoice' | 'receipt' | 'receipt_invoice' | 'credit_note'
-export type AccountingProvider = 'icount' | 'internal'
+export type AccountingProvider = 'icount' | 'green_invoice' | 'internal'
 
 export interface AccountingIntegration {
   id: string
@@ -122,6 +122,7 @@ export interface AccountingIntegration {
   company_id?: string
   is_active: boolean
   created_at: string
+  updated_at: string
 }
 
 export interface AccountingDocument {
