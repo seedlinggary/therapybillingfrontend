@@ -13,11 +13,14 @@ import {
   connectAccounting, disconnectAccounting, getAccountingStatus,
 } from '../../api/accounting'
 import { getExchangeRate } from '../../api/clients'
-import { CreditCard, User, Calendar, Link2, CheckCircle, AlertCircle, Clock, BookOpen } from 'lucide-react'
+import { listServiceTypes, createServiceType, updateServiceType, deleteServiceType } from '../../api/serviceTypes'
+import type { ServiceType } from '../../api/serviceTypes'
+import { CreditCard, User, Calendar, Link2, CheckCircle, AlertCircle, Clock, BookOpen, Briefcase, Plus, Pencil, Trash2, Check, X as XIcon, Bell } from 'lucide-react'
 import type { BillingFrequency } from '../../types'
 
 interface SettingsForm {
   name: string
+  business_type: string
   phone: string
   license_number: string
   bio: string
@@ -29,12 +32,13 @@ interface SettingsForm {
   default_billing_frequency: BillingFrequency
   default_billing_anchor_day: number
   show_conversion_note: boolean
+  reminder_frequency_days: number
 }
 
 const TIMEZONES = [
+  'Asia/Jerusalem',
   'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
   'America/Anchorage', 'Pacific/Honolulu', 'Europe/London', 'Europe/Paris',
-  'Asia/Jerusalem',
 ]
 
 const DOW_LABELS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -50,6 +54,11 @@ export function TherapistSettings() {
   const qc = useQueryClient()
   const [manualStripeId, setManualStripeId] = useState('')
   const [showManualStripe, setShowManualStripe] = useState(false)
+  const [newServiceName, setNewServiceName] = useState('')
+  const [newServiceDuration, setNewServiceDuration] = useState(50)
+  const [editingService, setEditingService] = useState<ServiceType | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editDuration, setEditDuration] = useState(50)
   const [showICountForm, setShowICountForm] = useState(false)
   const [iCountForm, setICountForm] = useState({ company_id: '', username: '', api_key: '' })
   const [showGreenInvoiceForm, setShowGreenInvoiceForm] = useState(false)
@@ -64,6 +73,41 @@ export function TherapistSettings() {
     queryFn: getMyTherapistProfile,
   })
 
+  const { data: serviceTypes = [] } = useQuery({
+    queryKey: ['service-types'],
+    queryFn: listServiceTypes,
+  })
+
+  const addServiceMutation = useMutation({
+    mutationFn: () => createServiceType({ name: newServiceName.trim(), duration_minutes: newServiceDuration }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['service-types'] })
+      toast.success('Service added')
+      setNewServiceName('')
+      setNewServiceDuration(50)
+    },
+    onError: () => toast.error('Failed to add service'),
+  })
+
+  const saveServiceMutation = useMutation({
+    mutationFn: (svc: ServiceType) => updateServiceType(svc.id, { name: editName.trim(), duration_minutes: editDuration }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['service-types'] })
+      toast.success('Service updated')
+      setEditingService(null)
+    },
+    onError: () => toast.error('Failed to update service'),
+  })
+
+  const removeServiceMutation = useMutation({
+    mutationFn: deleteServiceType,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['service-types'] })
+      toast.success('Service removed')
+    },
+    onError: () => toast.error('Failed to remove service'),
+  })
+
   const isIL = (profile?.country || 'US').toUpperCase() === 'IL'
 
   const { data: accountingStatuses = [] } = useQuery({
@@ -76,9 +120,10 @@ export function TherapistSettings() {
   // The "in use" provider is the most recently updated active one (matches factory logic)
   const activeProvider = accountingStatuses[0]?.provider ?? null
 
-  const { register, handleSubmit, reset, watch, formState: { isDirty } } = useForm<SettingsForm>()
+  const { register, handleSubmit, reset, watch, setValue, formState: { isDirty } } = useForm<SettingsForm>()
   const billingFreq = watch('default_billing_frequency')
   const anchorDay = watch('default_billing_anchor_day')
+  const reminderDays = watch('reminder_frequency_days')
   const watchedCountry = watch('country')
   const watchedCurrency = watch('default_currency')
   const watchedConversionNote = watch('show_conversion_note')
@@ -95,6 +140,7 @@ export function TherapistSettings() {
     if (profile) {
       reset({
         name: profile.name ?? '',
+        business_type: profile.business_type ?? '',
         phone: profile.phone ?? '',
         license_number: profile.license_number ?? '',
         bio: profile.bio ?? '',
@@ -106,6 +152,7 @@ export function TherapistSettings() {
         default_billing_frequency: profile.default_billing_frequency ?? 'same_day',
         default_billing_anchor_day: profile.default_billing_anchor_day ?? 0,
         show_conversion_note: profile.show_conversion_note ?? false,
+        reminder_frequency_days: profile.reminder_frequency_days ?? 0,
       })
     }
   }, [profile])
@@ -254,16 +301,20 @@ export function TherapistSettings() {
 
   const billingDescription = () => {
     if (billingFreq === 'same_day')
-      return 'A separate invoice is created and emailed at 2:00 AM UTC the same day you mark each session complete. Best for clients who pay per session.'
+      return 'Invoice is sent automatically the moment you mark an appointment complete. Best for clients who pay per session.'
     if (billingFreq === 'next_day')
-      return 'A separate invoice is created and emailed at 2:00 AM UTC the morning after you mark each session complete.'
+      return 'Invoice is sent at 2:00 AM UTC the morning after you mark an appointment complete.'
     if (billingFreq === 'weekly') {
       const day = DOW_LABELS[anchorDay ?? 0]
-      return `All completed sessions from the week are batched into one invoice and emailed at 2:00 AM UTC every ${day}. Clients receive one invoice per week instead of one per session.`
+      return `All completed appointments from the week are batched into one invoice emailed at 2:00 AM UTC every ${day}.`
+    }
+    if (billingFreq === 'biweekly') {
+      const day = DOW_LABELS[anchorDay ?? 0]
+      return `All completed appointments are batched into one invoice emailed every other ${day} at 2:00 AM UTC.`
     }
     if (billingFreq === 'monthly') {
       const d = anchorDay ?? 1
-      return `All completed sessions from the month are batched into one invoice and emailed at 2:00 AM UTC on the ${d}${ordinal(d)} of each month. Clients receive one invoice per month.`
+      return `All completed appointments from the month are batched into one invoice emailed at 2:00 AM UTC on the ${d}${ordinal(d)} of each month.`
     }
     return ''
   }
@@ -286,6 +337,12 @@ export function TherapistSettings() {
                 <label className="label">Full Name</label>
                 <input {...register('name')} className="input" />
               </div>
+              <div>
+                <label className="label">Business Type</label>
+                <input {...register('business_type')} className="input" placeholder="e.g. Therapy Practice, Barbershop, Nail Salon" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="label">Timezone</label>
                 <select {...register('timezone')} className="input">
@@ -344,6 +401,104 @@ export function TherapistSettings() {
           </div>
         </div>
 
+        {/* ── Services ── */}
+        <div className="card">
+          <div className="flex items-center gap-3 mb-4">
+            <Briefcase className="w-5 h-5 text-primary-600" />
+            <div>
+              <h2 className="font-semibold text-gray-900">Services</h2>
+              <p className="text-sm text-gray-500">What you offer and the default duration for each.</p>
+            </div>
+          </div>
+
+          {serviceTypes.length > 0 && (
+            <div className="mb-4 divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+              {serviceTypes.map(svc => (
+                <div key={svc.id} className="flex items-center gap-3 px-4 py-3 bg-white">
+                  {editingService?.id === svc.id ? (
+                    <>
+                      <input
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        className="input flex-1 text-sm py-1"
+                      />
+                      <input
+                        type="number"
+                        min={5}
+                        max={480}
+                        value={editDuration}
+                        onChange={e => setEditDuration(Number(e.target.value))}
+                        className="input w-20 text-sm py-1"
+                      />
+                      <span className="text-xs text-gray-400">min</span>
+                      <button
+                        onClick={() => saveServiceMutation.mutate(svc)}
+                        disabled={!editName.trim() || saveServiceMutation.isPending}
+                        className="text-green-600 hover:text-green-800 p-1"
+                      >
+                        <Check className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => setEditingService(null)} className="text-gray-400 hover:text-gray-600 p-1">
+                        <XIcon className="w-4 h-4" />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">{svc.name}</p>
+                        <p className="text-xs text-gray-500">{svc.duration_minutes} min</p>
+                      </div>
+                      <button
+                        onClick={() => { setEditingService(svc); setEditName(svc.name); setEditDuration(svc.duration_minutes) }}
+                        className="text-gray-400 hover:text-gray-600 p-1"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => removeServiceMutation.mutate(svc.id)}
+                        disabled={removeServiceMutation.isPending}
+                        className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-2 items-end">
+            <div className="flex-1">
+              <label className="label">Service Name</label>
+              <input
+                value={newServiceName}
+                onChange={e => setNewServiceName(e.target.value)}
+                className="input"
+                placeholder="e.g. Haircut, Individual Session, Manicure"
+              />
+            </div>
+            <div className="w-28">
+              <label className="label">Duration (min)</label>
+              <input
+                type="number"
+                min={5}
+                max={480}
+                value={newServiceDuration}
+                onChange={e => setNewServiceDuration(Number(e.target.value))}
+                className="input"
+              />
+            </div>
+            <button
+              onClick={() => addServiceMutation.mutate()}
+              disabled={!newServiceName.trim() || addServiceMutation.isPending}
+              className="btn-primary flex items-center gap-1.5 whitespace-nowrap"
+            >
+              <Plus className="w-4 h-4" /> Add
+            </button>
+          </div>
+        </div>
+
         {/* ── Default Billing ── */}
         <div className="card">
           <div className="flex items-center gap-3 mb-2">
@@ -357,14 +512,15 @@ export function TherapistSettings() {
             <div>
               <label className="label">Billing Frequency</label>
               <select {...register('default_billing_frequency')} className="input">
-                <option value="same_day">Same Day — invoice when session completes</option>
+                <option value="same_day">Same Day — invoice sent instantly on completion</option>
                 <option value="next_day">Next Day</option>
                 <option value="weekly">Weekly — batch into one invoice per week</option>
+                <option value="biweekly">Biweekly — batch every 2 weeks</option>
                 <option value="monthly">Monthly — batch into one invoice per month</option>
               </select>
             </div>
 
-            {billingFreq === 'weekly' && (
+            {(billingFreq === 'weekly' || billingFreq === 'biweekly') && (
               <div>
                 <label className="label">Bill on (day of week)</label>
                 <select {...register('default_billing_anchor_day', { valueAsNumber: true })} className="input">
@@ -389,6 +545,50 @@ export function TherapistSettings() {
                 {billingDescription()}
               </div>
             )}
+          </div>
+        </div>
+
+        {/* ── Payment Reminders ── */}
+        <div className="card">
+          <div className="flex items-center gap-3 mb-2">
+            <Bell className="w-5 h-5 text-primary-600" />
+            <h2 className="font-semibold text-gray-900">Payment Reminders</h2>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">
+            Automatically email clients with unpaid invoices. One email per client lists all outstanding balances. Set to 0 to disable.
+          </p>
+          <div className="space-y-3">
+            <div>
+              <label className="label">Send reminders every</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  min="0"
+                  max="365"
+                  {...register('reminder_frequency_days', { valueAsNumber: true })}
+                  className="input w-24"
+                  placeholder="0"
+                />
+                <span className="text-sm text-gray-600">days</span>
+                <div className="flex gap-1.5 ml-2">
+                  {[7, 14, 30].map(d => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setValue('reminder_frequency_days', d, { shouldDirty: true })}
+                      className={`px-2.5 py-1 text-xs rounded-md border transition-colors ${reminderDays === d ? 'bg-primary-600 text-white border-primary-600' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                    >
+                      {d}d
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="bg-gray-50 rounded-lg px-4 py-3 text-sm text-gray-600">
+              {!reminderDays || reminderDays === 0
+                ? 'Reminders are disabled.'
+                : `Clients with unpaid invoices will receive one reminder email every ${reminderDays} day${reminderDays === 1 ? '' : 's'}. Invoices issued within the last 24 hours are excluded.`}
+            </div>
           </div>
         </div>
 

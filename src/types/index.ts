@@ -5,6 +5,7 @@ export interface Therapist {
   email: string
   name: string
   picture_url?: string
+  business_type?: string
   timezone: string
   phone?: string
   license_number?: string
@@ -23,6 +24,7 @@ export interface Therapist {
   paypal_email?: string
   paypal_connected: boolean
   show_conversion_note: boolean
+  reminder_frequency_days?: number
   created_at: string
 }
 
@@ -35,7 +37,7 @@ export interface Client {
   created_at: string
 }
 
-export type BillingFrequency = 'same_day' | 'next_day' | 'weekly' | 'monthly'
+export type BillingFrequency = 'same_day' | 'next_day' | 'weekly' | 'biweekly' | 'monthly'
 
 export interface TherapistClient {
   id: string

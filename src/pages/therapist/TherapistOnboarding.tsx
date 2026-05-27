@@ -6,11 +6,13 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import toast from 'react-hot-toast'
 import { getMyTherapistProfile, updateTherapistProfile, getCalendarConnectUrl, getStripeConnectUrl, manualConnectStripe } from '../../api/clients'
-import { CheckCircle, Calendar, CreditCard, User, ChevronDown } from 'lucide-react'
+import { listServiceTypes, createServiceType, deleteServiceType } from '../../api/serviceTypes'
+import { CheckCircle, Calendar, CreditCard, User, ChevronDown, Briefcase, Plus, Trash2 } from 'lucide-react'
 import type { Therapist } from '../../types'
 
 const profileSchema = z.object({
   name: z.string().min(2),
+  business_type: z.string().min(1, 'Required'),
   timezone: z.string().min(1),
   phone: z.string().optional(),
   license_number: z.string().optional(),
@@ -19,6 +21,7 @@ const profileSchema = z.object({
 type ProfileForm = z.infer<typeof profileSchema>
 
 const TIMEZONES = [
+  'Asia/Jerusalem',
   'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
   'America/Anchorage', 'Pacific/Honolulu', 'Europe/London', 'Europe/Paris',
 ]
@@ -46,6 +49,8 @@ export function TherapistOnboarding() {
   const errorCode = params.get('error')
   const [showManualStripe, setShowManualStripe] = useState(false)
   const [manualAccountId, setManualAccountId] = useState('')
+  const [newServiceName, setNewServiceName] = useState('')
+  const [newServiceDuration, setNewServiceDuration] = useState(50)
 
   const ONBOARDING_ERRORS: Record<string, string> = {
     calendar_api_disabled:
@@ -65,7 +70,11 @@ export function TherapistOnboarding() {
     queryFn: getMyTherapistProfile,
   })
 
-  // Force-refresh profile after OAuth redirects back with ?step=... so connected badges appear immediately
+  const { data: serviceTypes = [] } = useQuery({
+    queryKey: ['service-types'],
+    queryFn: listServiceTypes,
+  })
+
   useEffect(() => {
     if (currentStep) {
       qc.invalidateQueries({ queryKey: ['therapist-profile'] })
@@ -76,6 +85,7 @@ export function TherapistOnboarding() {
     resolver: zodResolver(profileSchema),
     values: profile ? {
       name: profile.name,
+      business_type: profile.business_type ?? '',
       timezone: profile.timezone,
       phone: profile.phone || '',
       license_number: profile.license_number || '',
@@ -90,6 +100,26 @@ export function TherapistOnboarding() {
       toast.success('Profile saved')
     },
     onError: () => toast.error('Failed to save profile'),
+  })
+
+  const addServiceMutation = useMutation({
+    mutationFn: () => createServiceType({ name: newServiceName.trim(), duration_minutes: newServiceDuration }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['service-types'] })
+      toast.success('Service added')
+      setNewServiceName('')
+      setNewServiceDuration(50)
+    },
+    onError: () => toast.error('Failed to add service'),
+  })
+
+  const removeServiceMutation = useMutation({
+    mutationFn: deleteServiceType,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['service-types'] })
+      toast.success('Service removed')
+    },
+    onError: () => toast.error('Failed to remove service'),
   })
 
   const handleCalendarConnect = async () => {
@@ -124,14 +154,16 @@ export function TherapistOnboarding() {
 
   if (!profile) return <div className="p-8 text-gray-400">Loading...</div>
 
+  const hasServices = serviceTypes.length > 0
+
   return (
     <div className="p-8 max-w-2xl">
       <div className="mb-8 flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Account Setup</h1>
-          <p className="text-gray-500 mt-1">Complete these steps to start using TherapyBilling.</p>
+          <p className="text-gray-500 mt-1">Complete these steps to start using PracticeBilling.</p>
         </div>
-          {profile.onboarding_completed && (
+        {profile.onboarding_completed && (
           <button onClick={() => navigate('/therapist')} className="btn-secondary text-sm">
             Go to Dashboard →
           </button>
@@ -149,9 +181,10 @@ export function TherapistOnboarding() {
       <div className="card mb-8">
         <h2 className="text-sm font-semibold text-gray-500 uppercase mb-4">Setup Progress</h2>
         <div className="space-y-3">
-          <StepIndicator step={1} label="Profile Information" done={!!profile.name} />
-          <StepIndicator step={2} label="Connect Google Calendar" done={profile.google_calendar_connected} />
-          <StepIndicator step={3} label="Connect Stripe Payments" done={profile.stripe_connected} />
+          <StepIndicator step={1} label="Profile & Business Info" done={!!profile.name && !!profile.business_type} />
+          <StepIndicator step={2} label="Add Your Services" done={hasServices} />
+          <StepIndicator step={3} label="Connect Google Calendar" done={profile.google_calendar_connected} />
+          <StepIndicator step={4} label="Connect Stripe Payments" done={profile.stripe_connected} />
         </div>
         {profile.onboarding_completed && (
           <div className="mt-4 p-3 bg-green-50 rounded-lg flex items-center gap-2">
@@ -175,30 +208,98 @@ export function TherapistOnboarding() {
               {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name.message}</p>}
             </div>
             <div>
+              <label className="label">Business Type *</label>
+              <input {...register('business_type')} className="input" placeholder="e.g. Therapy Practice, Barbershop, Nail Salon" />
+              {errors.business_type && <p className="text-red-500 text-xs mt-1">{errors.business_type.message}</p>}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
               <label className="label">Timezone *</label>
               <select {...register('timezone')} className="input">
                 {TIMEZONES.map(tz => <option key={tz} value={tz}>{tz}</option>)}
               </select>
             </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Phone</label>
               <input {...register('phone')} className="input" placeholder="+1 555-0100" />
             </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="label">License Number</label>
-              <input {...register('license_number')} className="input" placeholder="LPC-12345" />
+              <label className="label">License / Registration Number</label>
+              <input {...register('license_number')} className="input" placeholder="Optional" />
             </div>
           </div>
           <div>
             <label className="label">Bio</label>
-            <textarea {...register('bio')} className="input h-24 resize-none" placeholder="Tell clients about yourself..." />
+            <textarea {...register('bio')} className="input h-24 resize-none" placeholder="Tell clients about yourself or your business..." />
           </div>
           <button type="submit" disabled={profileMutation.isPending} className="btn-primary">
             {profileMutation.isPending ? 'Saving...' : 'Save Profile'}
           </button>
         </form>
+      </div>
+
+      {/* Services */}
+      <div className="card mb-6">
+        <div className="flex items-center gap-3 mb-4">
+          <Briefcase className="w-5 h-5 text-primary-600" />
+          <div>
+            <h2 className="font-semibold text-gray-900">Your Services</h2>
+            <p className="text-sm text-gray-500">Define what you offer and the default duration for each.</p>
+          </div>
+        </div>
+
+        {serviceTypes.length > 0 && (
+          <div className="mb-4 divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+            {serviceTypes.map(svc => (
+              <div key={svc.id} className="flex items-center justify-between px-4 py-3 bg-white">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{svc.name}</p>
+                  <p className="text-xs text-gray-500">{svc.duration_minutes} min</p>
+                </div>
+                <button
+                  onClick={() => removeServiceMutation.mutate(svc.id)}
+                  disabled={removeServiceMutation.isPending}
+                  className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex gap-2 items-end">
+          <div className="flex-1">
+            <label className="label">Service Name</label>
+            <input
+              value={newServiceName}
+              onChange={e => setNewServiceName(e.target.value)}
+              className="input"
+              placeholder="e.g. Haircut, Individual Session, Manicure"
+            />
+          </div>
+          <div className="w-28">
+            <label className="label">Duration (min)</label>
+            <input
+              type="number"
+              min={5}
+              max={480}
+              value={newServiceDuration}
+              onChange={e => setNewServiceDuration(Number(e.target.value))}
+              className="input"
+            />
+          </div>
+          <button
+            onClick={() => addServiceMutation.mutate()}
+            disabled={!newServiceName.trim() || addServiceMutation.isPending}
+            className="btn-primary flex items-center gap-1.5 whitespace-nowrap"
+          >
+            <Plus className="w-4 h-4" /> Add
+          </button>
+        </div>
       </div>
 
       {/* Google Calendar */}

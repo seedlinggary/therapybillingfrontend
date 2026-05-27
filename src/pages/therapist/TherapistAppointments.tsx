@@ -11,8 +11,9 @@ import {
 } from '../../api/appointments'
 import { billNow } from '../../api/invoices'
 import { listMyClients, getMyTherapistProfile } from '../../api/clients'
+import { listServiceTypes } from '../../api/serviceTypes'
 import { CalendarView } from '../../components/therapist/CalendarView'
-import { Plus, CheckCircle, XCircle, List, CalendarDays, RefreshCw, Zap, Pencil, Ban } from 'lucide-react'
+import { Plus, CheckCircle, XCircle, List, CalendarDays, RefreshCw, Zap, Pencil, Ban, ChevronDown, ChevronRight } from 'lucide-react'
 import type { Appointment } from '../../types'
 
 // ── Schemas ──────────────────────────────────────────────────────────────────
@@ -81,10 +82,12 @@ function EditModal({
   appt,
   onClose,
   currencySymbol = '$',
+  serviceTypes = [],
 }: {
   appt: Appointment
   onClose: () => void
   currencySymbol?: string
+  serviceTypes?: { id: string; name: string; duration_minutes: number }[]
 }) {
   const qc = useQueryClient()
 
@@ -142,7 +145,7 @@ function EditModal({
   })
 
   const handleMarkComplete = () => {
-    if (confirm('Mark this session as completed?'))
+    if (confirm('Mark this appointment as completed?'))
       statusMutation.mutate({ status: 'completed' })
   }
 
@@ -175,9 +178,12 @@ function EditModal({
             </div>
           </div>
           <div>
-            <label className="label">Session Type</label>
+            <label className="label">Service</label>
             <select {...register('session_type')} className="input">
-              {['Individual', 'Couples', 'Family', 'Group'].map(t => <option key={t}>{t}</option>)}
+              {serviceTypes.length > 0
+                ? serviceTypes.map(s => <option key={s.id} value={s.name}>{s.name} ({s.duration_minutes} min)</option>)
+                : <option value={appt.session_type}>{appt.session_type}</option>
+              }
             </select>
           </div>
           <div>
@@ -194,7 +200,7 @@ function EditModal({
             <span className="text-sm text-gray-700">VAT / Tax Exempt</span>
           </label>
           <div>
-            <label className="label">Session Notes</label>
+            <label className="label">Notes</label>
             <textarea {...register('session_notes')} className="input h-20 resize-none"
               placeholder="Private notes (not visible to client)..." />
           </div>
@@ -209,7 +215,7 @@ function EditModal({
         {/* ── Status actions ── */}
         {(appt.status === 'scheduled' || appt.status === 'canceled') && (
           <div className="mt-5 pt-5 border-t border-gray-100 space-y-2">
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Session Status</p>
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Status</p>
             <div className="flex gap-2">
               <button
                 onClick={handleMarkComplete}
@@ -222,7 +228,7 @@ function EditModal({
                   onClick={handleCancel}
                   disabled={anyPending}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition-colors">
-                  <Ban className="w-4 h-4" /> Cancel Session
+                  <Ban className="w-4 h-4" /> Cancel
                 </button>
               )}
             </div>
@@ -259,6 +265,7 @@ export function TherapistAppointments() {
   const [editingAppt, setEditingAppt] = useState<Appointment | null>(null)
   const [statusFilter, setStatusFilter] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('calendar')
+  const [confirmPanelOpen, setConfirmPanelOpen] = useState(false)
 
   const { data: profile } = useQuery({ queryKey: ['therapist-profile'], queryFn: getMyTherapistProfile })
   const sym = profile?.default_currency === 'ILS' ? '₪' : '$'
@@ -267,7 +274,14 @@ export function TherapistAppointments() {
     queryKey: ['appointments', statusFilter],
     queryFn: () => listTherapistAppointments(statusFilter ? { status: statusFilter } : {}),
   })
+
+  // Always fetch scheduled appointments regardless of the current filter — used by the confirm panel
+  const { data: scheduledAppts = [] } = useQuery({
+    queryKey: ['appointments', 'scheduled'],
+    queryFn: () => listTherapistAppointments({ status: 'scheduled' }),
+  })
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: listMyClients })
+  const { data: serviceTypes = [] } = useQuery({ queryKey: ['service-types'], queryFn: listServiceTypes })
   const activeClients = clients.filter(c => c.is_active)
 
   // ── Single appointment form ───────────────────────────────────────────────
@@ -278,24 +292,28 @@ export function TherapistAppointments() {
   const selectedClientId = watch('client_id')
   const createTaxExempt = watch('tax_exempt')
   const watchedStartTime = watch('start_time')
+  const watchedSessionType = watch('session_type')
   const selectedClient = clients.find(c => c.client_id === selectedClientId)
+  const selectedService = serviceTypes.find(s => s.name === watchedSessionType)
+  const defaultDuration = selectedService?.duration_minutes ?? serviceTypes[0]?.duration_minutes ?? 50
 
   // Pre-fill tax_exempt from the selected client's default whenever client changes
   useEffect(() => {
     if (selectedClient) setValue('tax_exempt', selectedClient.tax_exempt ?? false)
   }, [selectedClientId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-set end_time to start_time + 50 min when start_time changes and end is blank/before start
+  // Auto-set end_time based on selected service duration when start_time or service changes
   useEffect(() => {
     if (!watchedStartTime) return
     const start = new Date(watchedStartTime)
     if (isNaN(start.getTime())) return
     const currentEnd = watch('end_time')
     if (!currentEnd || new Date(currentEnd) <= start) {
-      const end = new Date(start.getTime() + 50 * 60 * 1000)
-      setValue('end_time', end.toISOString().slice(0, 16))
+      const end = new Date(start.getTime() + defaultDuration * 60 * 1000)
+      // format in local time (not UTC) — toISOString() would shift by timezone offset
+      setValue('end_time', format(end, "yyyy-MM-dd'T'HH:mm"))
     }
-  }, [watchedStartTime]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [watchedStartTime, watchedSessionType]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const createMutation = useMutation({
     mutationFn: createAppointment,
@@ -315,7 +333,7 @@ export function TherapistAppointments() {
     resolver: zodResolver(recurringSchema),
     defaultValues: {
       recurrence_type: 'weekly', end_by: 'count', occurrence_count: 12,
-      start_hour: 10, start_minute: 0, duration_minutes: 50, session_type: 'Individual',
+      start_hour: 10, start_minute: 0, duration_minutes: 50, session_type: '',
       tax_exempt: false,
     },
   })
@@ -353,7 +371,10 @@ export function TherapistAppointments() {
   const statusMutation = useMutation({
     mutationFn: ({ id, status, reason }: { id: string; status: string; reason?: string }) =>
       updateAppointmentStatus(id, status, reason),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['appointments'] }); toast.success('Status updated') },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ['appointments'] })
+      toast.success(vars.status === 'completed' ? 'Session confirmed' : 'Status updated')
+    },
     onError: () => toast.error('Failed to update status'),
   })
 
@@ -368,7 +389,7 @@ export function TherapistAppointments() {
   })
 
   const handleComplete = (id: string) => {
-    if (confirm('Mark this session as completed?')) statusMutation.mutate({ id, status: 'completed' })
+    if (confirm('Mark this appointment as completed?')) statusMutation.mutate({ id, status: 'completed' })
   }
   const handleCancel = (id: string) => {
     const reason = prompt('Cancellation reason (optional):') ?? undefined
@@ -384,7 +405,7 @@ export function TherapistAppointments() {
     <div className="p-4 md:p-8">
       {/* Edit modal */}
       {editingAppt && (
-        <EditModal appt={editingAppt} onClose={() => setEditingAppt(null)} currencySymbol={sym} />
+        <EditModal appt={editingAppt} onClose={() => setEditingAppt(null)} currencySymbol={sym} serviceTypes={serviceTypes} />
       )}
 
       {/* Header */}
@@ -409,11 +430,87 @@ export function TherapistAppointments() {
             </button>
             <button onClick={() => setModal('single')}
               className="btn-primary flex items-center gap-2">
-              <Plus className="w-4 h-4" /> Schedule Session
+              <Plus className="w-4 h-4" /> New Appointment
             </button>
           </div>
         </div>
       </div>
+
+      {/* ── Quick Confirm Panel ── */}
+      {(() => {
+        const now = new Date()
+        const pending = [...scheduledAppts].sort(
+          (a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+        )
+        return (
+          <div className="card p-0 overflow-hidden mb-6">
+            <button
+              onClick={() => setConfirmPanelOpen(v => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-amber-50 hover:bg-amber-100 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-amber-600" />
+                <span className="text-sm font-semibold text-amber-900">Confirm Sessions</span>
+                {pending.length > 0 && (
+                  <span className="bg-amber-200 text-amber-800 text-xs font-bold px-2 py-0.5 rounded-full">
+                    {pending.length}
+                  </span>
+                )}
+              </div>
+              {confirmPanelOpen
+                ? <ChevronDown className="w-4 h-4 text-amber-500" />
+                : <ChevronRight className="w-4 h-4 text-amber-500" />}
+            </button>
+
+            {confirmPanelOpen && (
+              pending.length === 0
+                ? (
+                  <div className="px-4 py-6 text-center text-sm text-gray-400">
+                    No unconfirmed appointments.
+                  </div>
+                )
+                : (
+                  <div className="divide-y divide-gray-100">
+                    {pending.map(appt => {
+                      const isPast = new Date(appt.start_time) < now
+                      return (
+                        <div key={appt.id} className={`flex items-center gap-3 px-4 py-3 ${isPast ? 'bg-orange-50/40' : 'bg-white'} hover:bg-gray-50 transition-colors`}>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium text-gray-900 truncate">{appt.client_name}</p>
+                              {isPast && <span className="shrink-0 text-xs text-orange-600 font-medium">past</span>}
+                            </div>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {format(new Date(appt.start_time), 'EEE, MMM d')}
+                              {' · '}
+                              {format(new Date(appt.start_time), 'h:mm a')}–{format(new Date(appt.end_time), 'h:mm a')}
+                              {' · '}{appt.session_type}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            {appt.effective_price != null && (
+                              <span className="text-sm text-gray-500 hidden sm:block">
+                                {sym}{appt.effective_price.toFixed(2)}
+                              </span>
+                            )}
+                            <button
+                              onClick={() => statusMutation.mutate({ id: appt.id, status: 'completed' })}
+                              disabled={statusMutation.isPending}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50"
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              <span>Confirm</span>
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+            )}
+          </div>
+        )
+      })()}
 
       {/* Status filter (list only) */}
       {viewMode === 'list' && (
@@ -431,7 +528,7 @@ export function TherapistAppointments() {
       {modal === 'single' && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <h2 className="text-lg font-semibold mb-4">Schedule Session</h2>
+            <h2 className="text-lg font-semibold mb-4">New Appointment</h2>
             <form onSubmit={handleSubmit(d => createMutation.mutate({
               ...d,
               start_time: new Date(d.start_time).toISOString(),
@@ -466,9 +563,12 @@ export function TherapistAppointments() {
                 </div>
               </div>
               <div>
-                <label className="label">Session Type</label>
+                <label className="label">Service</label>
                 <select {...register('session_type')} className="input">
-                  {['Individual', 'Couples', 'Family', 'Group'].map(t => <option key={t}>{t}</option>)}
+                  {serviceTypes.length > 0
+                    ? serviceTypes.map(s => <option key={s.id} value={s.name}>{s.name} ({s.duration_minutes} min)</option>)
+                    : <option value="Appointment">Appointment</option>
+                  }
                 </select>
               </div>
               <div>
@@ -565,9 +665,12 @@ export function TherapistAppointments() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="label">Session Type</label>
+                  <label className="label">Service</label>
                   <select {...rReg('session_type')} className="input">
-                    {['Individual', 'Couples', 'Family', 'Group'].map(t => <option key={t}>{t}</option>)}
+                    {serviceTypes.length > 0
+                      ? serviceTypes.map(s => <option key={s.id} value={s.name}>{s.name} ({s.duration_minutes} min)</option>)
+                      : <option value="Appointment">Appointment</option>
+                    }
                   </select>
                 </div>
                 <div>
@@ -601,7 +704,12 @@ export function TherapistAppointments() {
 
       {/* Calendar / List */}
       {viewMode === 'calendar' && (
-        <CalendarView appointments={appointments} onEdit={setEditingAppt} currencySymbol={sym} />
+        <CalendarView
+          appointments={appointments}
+          onEdit={setEditingAppt}
+          onConfirm={(appt) => statusMutation.mutate({ id: appt.id, status: 'completed' })}
+          currencySymbol={sym}
+        />
       )}
 
       {viewMode === 'list' && (

@@ -5,10 +5,10 @@ import { format } from 'date-fns'
 import {
   listTherapistInvoices, voidInvoice, deleteInvoice, markInvoicePaid,
   resendInvoiceEmail, downloadTherapistInvoicePdf, createInvoice,
-  verifyStripePayment,
+  verifyStripePayment, createStandaloneInvoice,
 } from '../../api/invoices'
 import { listTherapistAppointments } from '../../api/appointments'
-import { getMyTherapistProfile } from '../../api/clients'
+import { getMyTherapistProfile, listMyClients } from '../../api/clients'
 import { Download, Mail, XCircle, Plus, Trash2, CheckCircle, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react'
 import type { Invoice } from '../../types'
 
@@ -48,7 +48,7 @@ function InvoiceRow({
             )}
             #{inv.invoice_number}
             {hasMultiple && (
-              <span className="text-xs text-gray-400 font-normal ml-1">({inv.items.length} sessions)</span>
+              <span className="text-xs text-gray-400 font-normal ml-1">({inv.items.length} items)</span>
             )}
           </div>
         </td>
@@ -129,7 +129,12 @@ export function TherapistInvoices() {
   const qc = useQueryClient()
   const [statusFilter, setStatusFilter] = useState('')
   const [showCreate, setShowCreate] = useState(false)
+  const [createMode, setCreateMode] = useState<'appointment' | 'standalone'>('appointment')
   const [selectedApptId, setSelectedApptId] = useState('')
+  const [standaloneClientId, setStandaloneClientId] = useState('')
+  const [standaloneDescription, setStandaloneDescription] = useState('')
+  const [standaloneAmount, setStandaloneAmount] = useState('')
+  const [standaloneServiceDate, setStandaloneServiceDate] = useState('')
   const [markPaidInvoice, setMarkPaidInvoice] = useState<Invoice | null>(null)
   const [markPaidMethod, setMarkPaidMethod] = useState('cash')
   const [markPaidDate, setMarkPaidDate] = useState(() => new Date().toISOString().slice(0, 10))
@@ -161,9 +166,16 @@ export function TherapistInvoices() {
   const { data: completedAppts = [] } = useQuery({
     queryKey: ['appointments-completed'],
     queryFn: () => listTherapistAppointments({ status: 'completed' }),
-    enabled: showCreate,
+    enabled: showCreate && createMode === 'appointment',
   })
   const unbilledAppts = completedAppts.filter(a => !a.billed)
+
+  const { data: allClients = [] } = useQuery({
+    queryKey: ['therapist-clients'],
+    queryFn: listMyClients,
+    enabled: showCreate && createMode === 'standalone',
+  })
+  const activeClients = allClients.filter(c => c.is_active)
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['invoices'] })
@@ -210,6 +222,34 @@ export function TherapistInvoices() {
     onError: (e: any) => toast.error(e?.response?.data?.detail || 'Failed to create invoice'),
   })
 
+  const standaloneMutation = useMutation({
+    mutationFn: createStandaloneInvoice,
+    onSuccess: () => {
+      invalidate()
+      toast.success('Invoice created and sent')
+      setShowCreate(false)
+      setStandaloneClientId('')
+      setStandaloneDescription('')
+      setStandaloneAmount('')
+      setStandaloneServiceDate('')
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || 'Failed to create invoice'),
+  })
+
+  const handleStandaloneSubmit = () => {
+    const amt = parseFloat(standaloneAmount)
+    if (!standaloneClientId || !standaloneDescription || isNaN(amt) || amt <= 0) {
+      toast.error('Please fill in client, description, and a valid amount')
+      return
+    }
+    standaloneMutation.mutate({
+      client_id: standaloneClientId,
+      description: standaloneDescription,
+      amount: amt,
+      service_date: standaloneServiceDate || undefined,
+    })
+  }
+
   const verifyMutation = useMutation({
     mutationFn: verifyStripePayment,
     onSuccess: () => { invalidate(); toast.success('Payment confirmed — invoice marked as paid') },
@@ -220,7 +260,7 @@ export function TherapistInvoices() {
     <div className="p-4 md:p-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Invoices</h1>
-        <button onClick={() => setShowCreate(true)} className="btn-primary flex items-center gap-2">
+        <button onClick={() => { setCreateMode('appointment'); setShowCreate(true) }} className="btn-primary flex items-center gap-2">
           <Plus className="w-4 h-4" /> Create Invoice
         </button>
       </div>
@@ -240,29 +280,101 @@ export function TherapistInvoices() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-6 w-full max-w-md">
             <h2 className="text-lg font-semibold mb-4">Create Invoice</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="label">Completed Session (unbilled)</label>
-                <select value={selectedApptId} onChange={e => setSelectedApptId(e.target.value)} className="input">
-                  <option value="">Select session...</option>
-                  {unbilledAppts.map(a => (
-                    <option key={a.id} value={a.id}>
-                      {a.client_name} — {format(new Date(a.start_time), 'MMM d, yyyy h:mm a')} ({profileSym}{(a.effective_price ?? 0).toFixed(2)})
-                    </option>
-                  ))}
-                </select>
-                {unbilledAppts.length === 0 && (
-                  <p className="text-xs text-gray-400 mt-1">No unbilled completed sessions.</p>
-                )}
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button onClick={() => selectedApptId && createMutation.mutate(selectedApptId)}
-                  disabled={!selectedApptId || createMutation.isPending} className="btn-primary flex-1">
-                  {createMutation.isPending ? 'Creating...' : 'Create & Send'}
-                </button>
-                <button onClick={() => setShowCreate(false)} className="btn-secondary flex-1">Cancel</button>
-              </div>
+
+            {/* Mode tabs */}
+            <div className="flex gap-1 bg-gray-100 rounded-lg p-1 mb-5">
+              <button
+                onClick={() => setCreateMode('appointment')}
+                className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${createMode === 'appointment' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                From Appointment
+              </button>
+              <button
+                onClick={() => setCreateMode('standalone')}
+                className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-colors ${createMode === 'standalone' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                Standalone
+              </button>
             </div>
+
+            {createMode === 'appointment' ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="label">Completed Appointment (unbilled)</label>
+                  <select value={selectedApptId} onChange={e => setSelectedApptId(e.target.value)} className="input">
+                    <option value="">Select appointment...</option>
+                    {unbilledAppts.map(a => (
+                      <option key={a.id} value={a.id}>
+                        {a.client_name} — {format(new Date(a.start_time), 'MMM d, yyyy h:mm a')} ({profileSym}{(a.effective_price ?? 0).toFixed(2)})
+                      </option>
+                    ))}
+                  </select>
+                  {unbilledAppts.length === 0 && (
+                    <p className="text-xs text-gray-400 mt-1">No unbilled completed appointments.</p>
+                  )}
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button onClick={() => selectedApptId && createMutation.mutate(selectedApptId)}
+                    disabled={!selectedApptId || createMutation.isPending} className="btn-primary flex-1">
+                    {createMutation.isPending ? 'Creating...' : 'Create & Send'}
+                  </button>
+                  <button onClick={() => setShowCreate(false)} className="btn-secondary flex-1">Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="label">Client</label>
+                  <select value={standaloneClientId} onChange={e => setStandaloneClientId(e.target.value)} className="input">
+                    <option value="">Select client...</option>
+                    {activeClients.map(c => (
+                      <option key={c.client_id} value={c.client_id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Description</label>
+                  <input
+                    type="text"
+                    value={standaloneDescription}
+                    onChange={e => setStandaloneDescription(e.target.value)}
+                    placeholder="e.g. Consultation, Monthly package..."
+                    className="input"
+                  />
+                </div>
+                <div>
+                  <label className="label">Amount ({profileSym})</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={standaloneAmount}
+                    onChange={e => setStandaloneAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="input"
+                  />
+                </div>
+                <div>
+                  <label className="label">Service Date <span className="text-gray-400 font-normal">(optional)</span></label>
+                  <input
+                    type="date"
+                    value={standaloneServiceDate}
+                    onChange={e => setStandaloneServiceDate(e.target.value)}
+                    className="input"
+                  />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={handleStandaloneSubmit}
+                    disabled={standaloneMutation.isPending}
+                    className="btn-primary flex-1"
+                  >
+                    {standaloneMutation.isPending ? 'Creating...' : 'Create & Send'}
+                  </button>
+                  <button onClick={() => setShowCreate(false)} className="btn-secondary flex-1">Cancel</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -316,7 +428,7 @@ export function TherapistInvoices() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Session</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>

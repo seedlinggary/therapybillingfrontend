@@ -22,6 +22,7 @@ const BILLING_LABELS: Record<BillingFrequency, string> = {
   same_day: 'Same Day',
   next_day: 'Next Day',
   weekly: 'Weekly',
+  biweekly: 'Biweekly',
   monthly: 'Monthly',
 }
 
@@ -145,7 +146,7 @@ function BillingModal({
   const mutation = useMutation({
     mutationFn: () => updateClientBilling(client.client_id, {
       billing_frequency: freq,
-      billing_anchor_day: (freq === 'weekly' || freq === 'monthly') ? anchorDay : null,
+      billing_anchor_day: (freq === 'weekly' || freq === 'biweekly' || freq === 'monthly') ? anchorDay : null,
       tax_exempt: taxExempt,
     }),
     onSuccess: () => {
@@ -166,14 +167,15 @@ function BillingModal({
           <div>
             <label className="label">Billing Frequency</label>
             <select value={freq} onChange={e => setFreq(e.target.value as BillingFrequency)} className="input">
-              <option value="same_day">Same Day (bill when session completes)</option>
+              <option value="same_day">Same Day (invoice sent instantly on completion)</option>
               <option value="next_day">Next Day</option>
               <option value="weekly">Weekly (batch into one invoice)</option>
+              <option value="biweekly">Biweekly (batch every 2 weeks)</option>
               <option value="monthly">Monthly (batch into one invoice)</option>
             </select>
           </div>
 
-          {freq === 'weekly' && (
+          {(freq === 'weekly' || freq === 'biweekly') && (
             <div>
               <label className="label">Bill on (day of week)</label>
               <select value={anchorDay} onChange={e => setAnchorDay(Number(e.target.value))} className="input">
@@ -194,10 +196,11 @@ function BillingModal({
           )}
 
           <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-600">
-            {freq === 'same_day' && 'Invoice created the same day the session is marked complete.'}
-            {freq === 'next_day' && 'Invoice created the day after the session.'}
-            {freq === 'weekly' && `All completed sessions are batched into one invoice each ${DOW_LABELS[anchorDay]}.`}
-            {freq === 'monthly' && `All completed sessions are batched into one invoice on the ${anchorDay || 1}${ordinal(anchorDay || 1)} of each month.`}
+            {freq === 'same_day' && 'Invoice sent automatically the moment the appointment is marked complete.'}
+            {freq === 'next_day' && 'Invoice sent the morning after the appointment.'}
+            {freq === 'weekly' && `All completed appointments batched into one invoice each ${DOW_LABELS[anchorDay]}.`}
+            {freq === 'biweekly' && `All completed appointments batched into one invoice every other ${DOW_LABELS[anchorDay]}.`}
+            {freq === 'monthly' && `All completed appointments batched into one invoice on the ${anchorDay || 1}${ordinal(anchorDay || 1)} of each month.`}
           </div>
 
           <label className="flex items-center gap-3 cursor-pointer select-none">

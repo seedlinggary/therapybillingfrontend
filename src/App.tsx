@@ -1,6 +1,15 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
 
+// Marketing pages
+import { MarketingLayout } from './components/marketing/MarketingLayout'
+import { HomePage } from './pages/marketing/HomePage'
+import { FeaturesPage } from './pages/marketing/FeaturesPage'
+import { PricingPage } from './pages/marketing/PricingPage'
+import { FaqPage } from './pages/marketing/FaqPage'
+import { AboutPage } from './pages/marketing/AboutPage'
+import { ContactPage } from './pages/marketing/ContactPage'
+
 // Auth pages
 import { GoogleAuthCallback } from './pages/auth/GoogleAuthCallback'
 import { ClientLogin } from './pages/auth/ClientLogin'
@@ -85,13 +94,20 @@ export default function App() {
         <Route path="invoices" element={<ClientInvoices />} />
       </Route>
 
-      {/* Root redirect */}
-      <Route path="/" element={
+      {/* Marketing site — visible to unauthenticated visitors; logged-in users redirect to their dashboard */}
+      <Route element={
         role === 'therapist' ? <Navigate to="/therapist" replace /> :
         role === 'client' ? <Navigate to="/client" replace /> :
         role === 'admin' ? <Navigate to="/admin" replace /> :
-        <Navigate to="/login" replace />
-      } />
+        <MarketingLayout />
+      }>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/features" element={<FeaturesPage />} />
+        <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/faq" element={<FaqPage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/contact" element={<ContactPage />} />
+      </Route>
     </Routes>
   )
 }

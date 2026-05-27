@@ -4,6 +4,18 @@ import type { Invoice } from '../types'
 export const createInvoice = (appointment_id: string, notes?: string): Promise<Invoice> =>
   api.post('/therapist/invoices', { appointment_id, notes }).then(r => r.data)
 
+export interface StandaloneInvoiceData {
+  client_id: string
+  description: string
+  amount: number
+  service_date?: string
+  due_date?: string
+  notes?: string
+}
+
+export const createStandaloneInvoice = (data: StandaloneInvoiceData): Promise<Invoice> =>
+  api.post('/therapist/invoices/standalone', data).then(r => r.data)
+
 export const billNow = (appointment_id: string): Promise<Invoice> =>
   api.post(`/therapist/appointments/${appointment_id}/bill-now`).then(r => r.data)
 

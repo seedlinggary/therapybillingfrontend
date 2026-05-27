@@ -5,13 +5,14 @@ import {
   startOfMonth, endOfMonth,
   addMonths, subMonths, isSameMonth,
 } from 'date-fns'
-import { ChevronLeft, ChevronRight, Pencil } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Pencil, CheckCircle } from 'lucide-react'
 import type { Appointment } from '../../types'
 
 interface Props {
   appointments: Appointment[]
   onAppointmentClick?: (appt: Appointment) => void
   onEdit?: (appt: Appointment) => void
+  onConfirm?: (appt: Appointment) => void
   currencySymbol?: string
 }
 
@@ -177,11 +178,12 @@ function MonthView({ anchor, appointments, onAppointmentClick }: {
 // ── Appointment detail popover ────────────────────────────────────────────────
 
 function AppointmentDetail({
-  appt, onClose, onEdit, currencySymbol = '$',
+  appt, onClose, onEdit, onConfirm, currencySymbol = '$',
 }: {
   appt: Appointment
   onClose: () => void
   onEdit?: (appt: Appointment) => void
+  onConfirm?: (appt: Appointment) => void
   currencySymbol?: string
 }) {
   return (
@@ -190,7 +192,7 @@ function AppointmentDetail({
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="font-semibold text-gray-900">{appt.client_name}</h3>
-            <p className="text-sm text-gray-500">{appt.session_type}</p>
+            <p className="text-sm text-gray-500">{appt.session_type ?? '—'}</p>
           </div>
           <span className={`text-xs font-medium px-2 py-0.5 rounded-full border-l-2 ${STATUS_COLORS[appt.status]}`}>
             {appt.status.replace('_', ' ')}
@@ -225,6 +227,13 @@ function AppointmentDetail({
           )}
         </div>
         <div className="flex gap-2 mt-4">
+          {onConfirm && appt.status === 'scheduled' && (
+            <button
+              onClick={() => { onClose(); onConfirm(appt) }}
+              className="flex-1 flex items-center justify-center gap-1.5 text-sm font-medium bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg transition-colors">
+              <CheckCircle className="w-3.5 h-3.5" /> Confirm
+            </button>
+          )}
           {onEdit && (
             <button
               onClick={() => { onClose(); onEdit(appt) }}
@@ -243,7 +252,7 @@ function AppointmentDetail({
 
 type ViewMode = 'week' | 'month'
 
-export function CalendarView({ appointments, onAppointmentClick, onEdit, currencySymbol = '$' }: Props) {
+export function CalendarView({ appointments, onAppointmentClick, onEdit, onConfirm, currencySymbol = '$' }: Props) {
   const [viewMode, setViewMode] = useState<ViewMode>('week')
   const [anchor, setAnchor] = useState(() => new Date())
   const [selected, setSelected] = useState<Appointment | null>(null)
