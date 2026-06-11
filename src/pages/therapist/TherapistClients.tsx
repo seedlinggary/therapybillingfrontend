@@ -34,6 +34,22 @@ function StatusBadge({ active, clientActive }: { active: boolean; clientActive: 
   return <span className="badge-green">Active</span>
 }
 
+function Toggle({ checked, onChange, label, description }: { checked: boolean; onChange: (v: boolean) => void; label: string; description?: string }) {
+  return (
+    <label className="flex items-center gap-3 cursor-pointer select-none">
+      <div className="relative flex-shrink-0">
+        <input type="checkbox" className="sr-only" checked={checked} onChange={e => onChange(e.target.checked)} />
+        <div className={`w-9 h-5 rounded-full transition-colors ${checked ? 'bg-primary-600' : 'bg-gray-300'}`} />
+        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
+      </div>
+      <div>
+        <span className="text-sm font-medium text-gray-700">{label}</span>
+        {description && <p className="text-xs text-gray-500">{description}</p>}
+      </div>
+    </label>
+  )
+}
+
 function EditClientModal({
   client,
   onClose,
@@ -47,6 +63,10 @@ function EditClientModal({
     notes: client.notes ?? '',
     is_active: client.is_active,
     tax_exempt: client.tax_exempt ?? false,
+    notify_appointment: client.notify_appointment ?? true,
+    notify_invoice: client.notify_invoice ?? true,
+    notify_receipt: client.notify_receipt ?? true,
+    notify_reminder: client.notify_reminder ?? true,
   })
 
   const mutation = useMutation({
@@ -58,6 +78,10 @@ function EditClientModal({
       notes: form.notes || undefined,
       is_active: form.is_active,
       tax_exempt: form.tax_exempt,
+      notify_appointment: form.notify_appointment,
+      notify_invoice: form.notify_invoice,
+      notify_receipt: form.notify_receipt,
+      notify_reminder: form.notify_reminder,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['clients'] })
@@ -69,7 +93,7 @@ function EditClientModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-xl p-6 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-xl p-6 w-full max-w-md space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <h2 className="text-lg font-semibold">Edit Client</h2>
 
         <div className="grid grid-cols-2 gap-3">
@@ -110,17 +134,42 @@ function EditClientModal({
           <label htmlFor="is_active" className="text-sm text-gray-700">Active (include in scheduling &amp; billing)</label>
         </div>
 
-        <label className="flex items-center gap-3 cursor-pointer select-none">
-          <div className="relative flex-shrink-0">
-            <input type="checkbox" className="sr-only" checked={form.tax_exempt} onChange={e => setForm(f => ({ ...f, tax_exempt: e.target.checked }))} />
-            <div className={`w-10 h-6 rounded-full transition-colors ${form.tax_exempt ? 'bg-indigo-600' : 'bg-gray-300'}`} />
-            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.tax_exempt ? 'translate-x-5' : 'translate-x-1'}`} />
+        <Toggle
+          checked={form.tax_exempt}
+          onChange={v => setForm(f => ({ ...f, tax_exempt: v }))}
+          label="VAT / Tax Exempt"
+          description={`VAT will ${form.tax_exempt ? 'not ' : ''}be charged on this client's sessions`}
+        />
+
+        <div className="border-t border-gray-100 pt-3">
+          <p className="text-sm font-medium text-gray-700 mb-2">Email Notifications</p>
+          <div className="space-y-2.5">
+            <Toggle
+              checked={form.notify_appointment}
+              onChange={v => setForm(f => ({ ...f, notify_appointment: v }))}
+              label="Appointment confirmations"
+              description="Send email when a new appointment is scheduled"
+            />
+            <Toggle
+              checked={form.notify_invoice}
+              onChange={v => setForm(f => ({ ...f, notify_invoice: v }))}
+              label="Invoice emails"
+              description="Send invoice email when a session is billed"
+            />
+            <Toggle
+              checked={form.notify_receipt}
+              onChange={v => setForm(f => ({ ...f, notify_receipt: v }))}
+              label="Receipt emails"
+              description="Send receipt confirmation after payment"
+            />
+            <Toggle
+              checked={form.notify_reminder}
+              onChange={v => setForm(f => ({ ...f, notify_reminder: v }))}
+              label="Payment reminders"
+              description="Send reminder emails for unpaid invoices"
+            />
           </div>
-          <div>
-            <span className="text-sm font-medium text-gray-700">VAT / Tax Exempt</span>
-            <p className="text-xs text-gray-500"> This customer is VAT exempt: {form.tax_exempt ? "Yes" : "No"}</p>
-          </div>
-        </label>
+        </div>
 
         <div className="flex gap-3 pt-1">
           <button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="btn-primary flex-1">
@@ -242,12 +291,13 @@ export function TherapistClients() {
   const [billingClient, setBillingClient] = useState<TherapistClient | null>(null)
   const [editingClient, setEditingClient] = useState<TherapistClient | null>(null)
 
-  const { data: profile } = useQuery({ queryKey: ['therapist-profile'], queryFn: getMyTherapistProfile })
+  const { data: profile } = useQuery({ queryKey: ['therapist-profile'], queryFn: getMyTherapistProfile, staleTime: 60_000 })
   const sym = profile?.default_currency === 'ILS' ? '₪' : '$'
 
   const { data: clients = [], isLoading } = useQuery({
     queryKey: ['clients'],
     queryFn: listMyClients,
+    staleTime: 30_000,
   })
 
   const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<CreateForm>({

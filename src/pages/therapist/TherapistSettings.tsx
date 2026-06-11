@@ -10,7 +10,7 @@ import {
   connectPayPal, disconnectPayPal,
 } from '../../api/clients'
 import {
-  connectAccounting, disconnectAccounting, getAccountingStatus,
+  connectAccounting, disconnectAccounting, getAccountingStatus, updateGreenInvoiceDocType,
 } from '../../api/accounting'
 import { getExchangeRate } from '../../api/clients'
 import { listServiceTypes, createServiceType, updateServiceType, deleteServiceType } from '../../api/serviceTypes'
@@ -33,6 +33,7 @@ interface SettingsForm {
   default_billing_anchor_day: number
   show_conversion_note: boolean
   reminder_frequency_days: number
+  reminder_repeat: boolean
 }
 
 const TIMEZONES = [
@@ -63,6 +64,7 @@ export function TherapistSettings() {
   const [iCountForm, setICountForm] = useState({ company_id: '', username: '', api_key: '' })
   const [showGreenInvoiceForm, setShowGreenInvoiceForm] = useState(false)
   const [greenInvoiceForm, setGreenInvoiceForm] = useState({ api_key_id: '', api_key_secret: '' })
+  const [greenInvoiceDocType, setGreenInvoiceDocType] = useState('receipt')
   const [showPayMeForm, setShowPayMeForm] = useState(false)
   const [payMeForm, setPayMeForm] = useState({ seller_id: '', api_key: '' })
   const [showPayPalForm, setShowPayPalForm] = useState(false)
@@ -71,11 +73,13 @@ export function TherapistSettings() {
   const { data: profile } = useQuery({
     queryKey: ['therapist-profile'],
     queryFn: getMyTherapistProfile,
+    staleTime: 60_000,
   })
 
   const { data: serviceTypes = [] } = useQuery({
     queryKey: ['service-types'],
     queryFn: listServiceTypes,
+    staleTime: 300_000,
   })
 
   const addServiceMutation = useMutation({
@@ -114,6 +118,7 @@ export function TherapistSettings() {
     queryKey: ['accounting-status'],
     queryFn: getAccountingStatus,
     enabled: isIL,
+    staleTime: 60_000,
   })
   const iCountStatus = accountingStatuses.find(s => s.provider === 'icount')
   const greenInvoiceStatus = accountingStatuses.find(s => s.provider === 'green_invoice')
@@ -124,6 +129,7 @@ export function TherapistSettings() {
   const billingFreq = watch('default_billing_frequency')
   const anchorDay = watch('default_billing_anchor_day')
   const reminderDays = watch('reminder_frequency_days')
+  const reminderRepeat = watch('reminder_repeat')
   const watchedCountry = watch('country')
   const watchedCurrency = watch('default_currency')
   const watchedConversionNote = watch('show_conversion_note')
@@ -153,12 +159,19 @@ export function TherapistSettings() {
         default_billing_anchor_day: profile.default_billing_anchor_day ?? 0,
         show_conversion_note: profile.show_conversion_note ?? false,
         reminder_frequency_days: profile.reminder_frequency_days ?? 0,
+        reminder_repeat: profile.reminder_repeat ?? true,
       })
     }
   }, [profile])
 
+  useEffect(() => {
+    if (greenInvoiceStatus?.green_invoice_doc_type) {
+      setGreenInvoiceDocType(greenInvoiceStatus.green_invoice_doc_type)
+    }
+  }, [greenInvoiceStatus])
+
   const saveMutation = useMutation({
-    mutationFn: updateTherapistProfile,
+    mutationFn: (d: SettingsForm) => updateTherapistProfile({ ...d, reminder_repeat: reminderRepeat ?? true }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['therapist-profile'] })
       toast.success('Settings saved')
@@ -255,6 +268,15 @@ export function TherapistSettings() {
       toast.success('Green Invoice disconnected')
     },
     onError: () => toast.error('Failed to disconnect Green Invoice'),
+  })
+
+  const greenInvoiceDocTypeMutation = useMutation({
+    mutationFn: (docType: string) => updateGreenInvoiceDocType(docType),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['accounting-status'] })
+      toast.success('Document type updated')
+    },
+    onError: () => toast.error('Failed to update document type'),
   })
 
   const payMeConnectMutation = useMutation({
@@ -557,7 +579,7 @@ export function TherapistSettings() {
           <p className="text-sm text-gray-500 mb-4">
             Automatically email clients with unpaid invoices. One email per client lists all outstanding balances. Set to 0 to disable.
           </p>
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div>
               <label className="label">Send reminders every</label>
               <div className="flex items-center gap-3">
@@ -584,10 +606,45 @@ export function TherapistSettings() {
                 </div>
               </div>
             </div>
+
+            {reminderDays > 0 && (
+              <div>
+                <label className="label">Reminder mode</label>
+                <div className="space-y-2">
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
+                    <input
+                      type="radio"
+                      checked={reminderRepeat !== false}
+                      onChange={() => setValue('reminder_repeat', true, { shouldDirty: true })}
+                      className="mt-0.5 accent-primary-600"
+                    />
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">Keep sending every {reminderDays} day{reminderDays === 1 ? '' : 's'} until paid</p>
+                      <p className="text-xs text-gray-500">Client will receive repeated reminders until the invoice is marked paid.</p>
+                    </div>
+                  </label>
+                  <label className="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
+                    <input
+                      type="radio"
+                      checked={reminderRepeat === false}
+                      onChange={() => setValue('reminder_repeat', false, { shouldDirty: true })}
+                      className="mt-0.5 accent-primary-600"
+                    />
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">Send once, {reminderDays} day{reminderDays === 1 ? '' : 's'} after invoice</p>
+                      <p className="text-xs text-gray-500">Each invoice gets exactly one reminder. No further emails after that.</p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            )}
+
             <div className="bg-gray-50 rounded-lg px-4 py-3 text-sm text-gray-600">
               {!reminderDays || reminderDays === 0
                 ? 'Reminders are disabled.'
-                : `Clients with unpaid invoices will receive one reminder email every ${reminderDays} day${reminderDays === 1 ? '' : 's'}. Invoices issued within the last 24 hours are excluded.`}
+                : reminderRepeat
+                  ? `Clients with unpaid invoices will receive a reminder email every ${reminderDays} day${reminderDays === 1 ? '' : 's'} until they pay.`
+                  : `Each invoice will receive one reminder email ${reminderDays} day${reminderDays === 1 ? '' : 's'} after it is issued. No repeat emails.`}
             </div>
           </div>
         </div>
@@ -672,84 +729,101 @@ export function TherapistSettings() {
 
         <div className="space-y-5">
           {/* Google Calendar */}
-          <div className="flex items-center justify-between py-3 border-b border-gray-100">
-            <div className="flex items-center gap-3">
-              <Calendar className="w-5 h-5 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium text-gray-900">Google Calendar</p>
-                <p className="text-xs text-gray-500">Sync appointments automatically</p>
+          <div className="py-3 border-b border-gray-100">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Calendar className="w-5 h-5 text-gray-500" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Google Calendar</p>
+                  <p className="text-xs text-gray-500">Sync appointments automatically — creates and removes events as you schedule.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {profile.google_calendar_connected ? (
+                  <>
+                    <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                      <CheckCircle className="w-3.5 h-3.5" /> Connected
+                    </span>
+                    <button
+                      onClick={() => confirm('Disconnect Google Calendar? Future appointments will not sync.') && calDisconnectMutation.mutate()}
+                      disabled={calDisconnectMutation.isPending}
+                      className="text-xs text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg">
+                      Disconnect
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex items-center gap-1 text-xs text-gray-400">
+                      <AlertCircle className="w-3.5 h-3.5" /> Not connected
+                    </span>
+                    <button
+                      onClick={() => calConnectMutation.mutate()}
+                      disabled={calConnectMutation.isPending}
+                      className="btn-primary text-xs px-3 py-1.5">
+                      Connect
+                    </button>
+                  </>
+                )}
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              {profile.google_calendar_connected ? (
-                <>
-                  <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
-                    <CheckCircle className="w-3.5 h-3.5" /> Connected
-                  </span>
-                  <button
-                    onClick={() => confirm('Disconnect Google Calendar? Future appointments will not sync.') && calDisconnectMutation.mutate()}
-                    disabled={calDisconnectMutation.isPending}
-                    className="text-xs text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg">
-                    Disconnect
-                  </button>
-                </>
-              ) : (
-                <>
-                  <span className="flex items-center gap-1 text-xs text-gray-400">
-                    <AlertCircle className="w-3.5 h-3.5" /> Not connected
-                  </span>
-                  <button
-                    onClick={() => calConnectMutation.mutate()}
-                    disabled={calConnectMutation.isPending}
-                    className="btn-primary text-xs px-3 py-1.5">
-                    Connect
-                  </button>
-                </>
-              )}
-            </div>
+            {!profile.google_calendar_connected && (
+              <div className="mt-2 ml-8 text-xs text-gray-500">
+                <span className="font-medium">Setup:</span> Click Connect above and authorize access with your Google account.{' '}
+                No configuration needed — your calendar syncs immediately after authorization.
+              </div>
+            )}
           </div>
 
           {/* Stripe */}
-          <div className="flex items-center justify-between py-3">
-            <div className="flex items-center gap-3">
-              <CreditCard className="w-5 h-5 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium text-gray-900">Stripe</p>
-                <p className="text-xs text-gray-500">Accept online payments via Stripe</p>
+          <div className="py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <CreditCard className="w-5 h-5 text-gray-500" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Stripe</p>
+                  <p className="text-xs text-gray-500">Accept online credit/debit card payments — clients get a payment link on every invoice.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {profile.stripe_connected ? (
+                  <>
+                    <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                      <CheckCircle className="w-3.5 h-3.5" /> Connected
+                    </span>
+                    <button
+                      onClick={() => confirm('Disconnect Stripe? Clients will no longer be able to pay online.') && stripeDisconnectMutation.mutate()}
+                      disabled={stripeDisconnectMutation.isPending}
+                      className="text-xs text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg">
+                      Disconnect
+                    </button>
+                  </>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center gap-1 text-xs text-gray-400">
+                      <AlertCircle className="w-3.5 h-3.5" /> Not connected
+                    </span>
+                    <button
+                      onClick={() => stripeConnectMutation.mutate()}
+                      disabled={stripeConnectMutation.isPending}
+                      className="btn-primary text-xs px-3 py-1.5">
+                      Connect via OAuth
+                    </button>
+                    <button
+                      onClick={() => setShowManualStripe(v => !v)}
+                      className="text-xs text-gray-500 hover:text-gray-700 border border-gray-300 px-3 py-1.5 rounded-lg">
+                      Manual
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              {profile.stripe_connected ? (
-                <>
-                  <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
-                    <CheckCircle className="w-3.5 h-3.5" /> Connected
-                  </span>
-                  <button
-                    onClick={() => confirm('Disconnect Stripe? Clients will no longer be able to pay online.') && stripeDisconnectMutation.mutate()}
-                    disabled={stripeDisconnectMutation.isPending}
-                    className="text-xs text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg">
-                    Disconnect
-                  </button>
-                </>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <span className="flex items-center gap-1 text-xs text-gray-400">
-                    <AlertCircle className="w-3.5 h-3.5" /> Not connected
-                  </span>
-                  <button
-                    onClick={() => stripeConnectMutation.mutate()}
-                    disabled={stripeConnectMutation.isPending}
-                    className="btn-primary text-xs px-3 py-1.5">
-                    Connect via OAuth
-                  </button>
-                  <button
-                    onClick={() => setShowManualStripe(v => !v)}
-                    className="text-xs text-gray-500 hover:text-gray-700 border border-gray-300 px-3 py-1.5 rounded-lg">
-                    Manual
-                  </button>
-                </div>
-              )}
-            </div>
+            {!profile.stripe_connected && (
+              <div className="mt-2 ml-8 text-xs text-gray-500">
+                <span className="font-medium">Setup:</span> Create a free account at{' '}
+                <a href="https://stripe.com" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline">stripe.com</a>
+                , then click <em>Connect via OAuth</em> above. For manual setup, find your Account ID in Stripe Dashboard → Settings → Account details (starts with <code className="font-mono">acct_</code>).
+              </div>
+            )}
           </div>
 
           {/* Manual Stripe entry */}
@@ -774,48 +848,57 @@ export function TherapistSettings() {
           )}
 
           {/* PayPal + Venmo */}
-          <div className="flex items-center justify-between py-3 border-t border-gray-100 mt-2">
-            <div className="flex items-center gap-3">
-              <CreditCard className="w-5 h-5 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium text-gray-900">PayPal (Not working yet) <span className="text-xs font-normal text-blue-600 ml-1">+ Venmo</span></p>
-                <p className="text-xs text-gray-500">Accept PayPal &amp; Venmo payments via your PayPal Business account</p>
+          <div className="py-3 border-t border-gray-100 mt-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <CreditCard className="w-5 h-5 text-gray-500" />
+                <div>
+                  <p className="text-sm font-medium text-gray-900">PayPal (Not working yet) <span className="text-xs font-normal text-blue-600 ml-1">+ Venmo</span></p>
+                  <p className="text-xs text-gray-500">Accept PayPal &amp; Venmo payments — clients see a PayPal checkout button on their invoices.</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {profile.paypal_connected ? (
+                  <>
+                    <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                      <CheckCircle className="w-3.5 h-3.5" /> Active
+                    </span>
+                    {profile.paypal_email && (
+                      <span className="text-xs text-gray-400">{profile.paypal_email}</span>
+                    )}
+                    <button
+                      onClick={() => { setPayPalEmail(profile.paypal_email ?? ''); setShowPayPalForm(v => !v) }}
+                      className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 px-3 py-1.5 rounded-lg">
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => confirm('Disconnect PayPal? Clients will be billed via Stripe instead.') && payPalDisconnectMutation.mutate()}
+                      disabled={payPalDisconnectMutation.isPending}
+                      className="text-xs text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg">
+                      Disconnect
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex items-center gap-1 text-xs text-gray-400">
+                      <AlertCircle className="w-3.5 h-3.5" /> Not connected
+                    </span>
+                    <button
+                      onClick={() => setShowPayPalForm(v => !v)}
+                      className="btn-primary text-xs px-3 py-1.5">
+                      Connect
+                    </button>
+                  </>
+                )}
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              {profile.paypal_connected ? (
-                <>
-                  <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
-                    <CheckCircle className="w-3.5 h-3.5" /> Active
-                  </span>
-                  {profile.paypal_email && (
-                    <span className="text-xs text-gray-400">{profile.paypal_email}</span>
-                  )}
-                  <button
-                    onClick={() => { setPayPalEmail(profile.paypal_email ?? ''); setShowPayPalForm(v => !v) }}
-                    className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 px-3 py-1.5 rounded-lg">
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => confirm('Disconnect PayPal? Clients will be billed via Stripe instead.') && payPalDisconnectMutation.mutate()}
-                    disabled={payPalDisconnectMutation.isPending}
-                    className="text-xs text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg">
-                    Disconnect
-                  </button>
-                </>
-              ) : (
-                <>
-                  <span className="flex items-center gap-1 text-xs text-gray-400">
-                    <AlertCircle className="w-3.5 h-3.5" /> Not connected
-                  </span>
-                  <button
-                    onClick={() => setShowPayPalForm(v => !v)}
-                    className="btn-primary text-xs px-3 py-1.5">
-                    Connect
-                  </button>
-                </>
-              )}
-            </div>
+            {!profile.paypal_connected && (
+              <div className="mt-2 ml-8 text-xs text-gray-500">
+                <span className="font-medium">Setup:</span> Create a{' '}
+                <a href="https://www.paypal.com/us/webapps/mpp/merchant" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline">PayPal Business account</a>
+                , then enter your PayPal email above. Venmo appears automatically for eligible US buyers.
+              </div>
+            )}
           </div>
 
           {/* PayPal credentials form */}
@@ -863,100 +946,118 @@ export function TherapistSettings() {
 
           {/* iCount — Israel only */}
           {isIL && (
-            <div className="flex items-center justify-between py-3 border-t border-gray-100 mt-2">
-              <div className="flex items-center gap-3">
-                <BookOpen className="w-5 h-5 text-gray-500" />
-                <div>
-                  <p className="text-sm font-medium text-gray-900">iCount</p>
-                  <p className="text-xs text-gray-500">Israeli invoicing — tax invoices, receipts, VAT</p>
+            <div className="py-3 border-t border-gray-100 mt-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <BookOpen className="w-5 h-5 text-gray-500" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">iCount</p>
+                    <p className="text-xs text-gray-500">Certified Israeli invoicing — legally compliant tax invoices (חשבונית מס), receipts, and VAT reporting.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  {iCountStatus ? (
+                    <>
+                      <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                        <CheckCircle className="w-3.5 h-3.5" /> Connected
+                      </span>
+                      {activeProvider === 'icount' && (
+                        <span className="text-xs bg-primary-100 text-primary-700 font-medium px-2 py-0.5 rounded-full">In use</span>
+                      )}
+                      <span className="text-xs text-gray-400 font-mono">{iCountStatus.company_id}</span>
+                      <button
+                        onClick={() => {
+                          setICountForm(f => ({ ...f, company_id: iCountStatus.company_id ?? '' }))
+                          setShowICountForm(v => !v)
+                          setShowGreenInvoiceForm(false)
+                        }}
+                        className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 px-3 py-1.5 rounded-lg">
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => confirm('Disconnect iCount?') && iCountDisconnectMutation.mutate()}
+                        disabled={iCountDisconnectMutation.isPending}
+                        className="text-xs text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg">
+                        Disconnect
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex items-center gap-1 text-xs text-gray-400">
+                        <AlertCircle className="w-3.5 h-3.5" /> Not connected
+                      </span>
+                      <button
+                        onClick={() => { setShowICountForm(v => !v); setShowGreenInvoiceForm(false) }}
+                        className="btn-primary text-xs px-3 py-1.5">
+                        Connect
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                {iCountStatus ? (
-                  <>
-                    <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
-                      <CheckCircle className="w-3.5 h-3.5" /> Connected
-                    </span>
-                    {activeProvider === 'icount' && (
-                      <span className="text-xs bg-primary-100 text-primary-700 font-medium px-2 py-0.5 rounded-full">In use</span>
-                    )}
-                    <span className="text-xs text-gray-400 font-mono">{iCountStatus.company_id}</span>
-                    <button
-                      onClick={() => {
-                        setICountForm(f => ({ ...f, company_id: iCountStatus.company_id ?? '' }))
-                        setShowICountForm(v => !v)
-                        setShowGreenInvoiceForm(false)
-                      }}
-                      className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 px-3 py-1.5 rounded-lg">
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => confirm('Disconnect iCount?') && iCountDisconnectMutation.mutate()}
-                      disabled={iCountDisconnectMutation.isPending}
-                      className="text-xs text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg">
-                      Disconnect
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <span className="flex items-center gap-1 text-xs text-gray-400">
-                      <AlertCircle className="w-3.5 h-3.5" /> Not connected
-                    </span>
-                    <button
-                      onClick={() => { setShowICountForm(v => !v); setShowGreenInvoiceForm(false) }}
-                      className="btn-primary text-xs px-3 py-1.5">
-                      Connect
-                    </button>
-                  </>
-                )}
-              </div>
+              {!iCountStatus && (
+                <div className="mt-2 ml-8 text-xs text-gray-500">
+                  <span className="font-medium">Setup:</span> Log in to{' '}
+                  <a href="https://www.icount.co.il" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline">icount.co.il</a>
+                  {' '}→ Settings → API. Copy your <strong>Company ID (cid)</strong>, <strong>username</strong>, and your iCount <strong>password</strong> and enter them above.
+                </div>
+              )}
             </div>
           )}
 
           {/* PayMe — Israel only */}
           {isIL && (
-            <div className="flex items-center justify-between py-3 border-t border-gray-100 mt-2">
-              <div className="flex items-center gap-3">
-                <CreditCard className="w-5 h-5 text-gray-500" />
-                <div>
-                  <p className="text-sm font-medium text-gray-900">PayMe (פייMי) (Not working yet)</p>
-                  <p className="text-xs text-gray-500">Accept card &amp; Bit payments via PayMe</p>
+            <div className="py-3 border-t border-gray-100 mt-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <CreditCard className="w-5 h-5 text-gray-500" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">PayMe (פייMי) (Not working yet)</p>
+                    <p className="text-xs text-gray-500">Accept card &amp; Bit payments via PayMe — clients pay directly from their invoice.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  {profile.payment_provider === 'payme' ? (
+                    <>
+                      <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                        <CheckCircle className="w-3.5 h-3.5" /> Active
+                      </span>
+                      {profile.payme_seller_id && (
+                        <span className="text-xs text-gray-400 font-mono">{profile.payme_seller_id}</span>
+                      )}
+                      <button
+                        onClick={() => setShowPayMeForm(v => !v)}
+                        className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 px-3 py-1.5 rounded-lg">
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => confirm('Disconnect PayMe? Clients will be billed via Stripe instead.') && payMeDisconnectMutation.mutate()}
+                        disabled={payMeDisconnectMutation.isPending}
+                        className="text-xs text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg">
+                        Disconnect
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex items-center gap-1 text-xs text-gray-400">
+                        <AlertCircle className="w-3.5 h-3.5" /> Not connected
+                      </span>
+                      <button
+                        onClick={() => setShowPayMeForm(v => !v)}
+                        className="btn-primary text-xs px-3 py-1.5">
+                        Connect
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                {profile.payment_provider === 'payme' ? (
-                  <>
-                    <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
-                      <CheckCircle className="w-3.5 h-3.5" /> Active
-                    </span>
-                    {profile.payme_seller_id && (
-                      <span className="text-xs text-gray-400 font-mono">{profile.payme_seller_id}</span>
-                    )}
-                    <button
-                      onClick={() => setShowPayMeForm(v => !v)}
-                      className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 px-3 py-1.5 rounded-lg">
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => confirm('Disconnect PayMe? Clients will be billed via Stripe instead.') && payMeDisconnectMutation.mutate()}
-                      disabled={payMeDisconnectMutation.isPending}
-                      className="text-xs text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg">
-                      Disconnect
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <span className="flex items-center gap-1 text-xs text-gray-400">
-                      <AlertCircle className="w-3.5 h-3.5" /> Not connected
-                    </span>
-                    <button
-                      onClick={() => setShowPayMeForm(v => !v)}
-                      className="btn-primary text-xs px-3 py-1.5">
-                      Connect
-                    </button>
-                  </>
-                )}
-              </div>
+              {profile.payment_provider !== 'payme' && (
+                <div className="mt-2 ml-8 text-xs text-gray-500">
+                  <span className="font-medium">Setup:</span> Contact{' '}
+                  <a href="https://payme.co.il" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline">PayMe</a>
+                  {' '}to open a seller account. Once approved, you'll receive a <strong>Seller ID</strong> and <strong>API Key</strong> from your PayMe dashboard.
+                </div>
+              )}
             </div>
           )}
 
@@ -1055,48 +1156,75 @@ export function TherapistSettings() {
 
           {/* Green Invoice — Israel only */}
           {isIL && (
-            <div className="flex items-center justify-between py-3 border-t border-gray-100 mt-2">
-              <div className="flex items-center gap-3">
-                <BookOpen className="w-5 h-5 text-green-600" />
-                <div>
-                  <p className="text-sm font-medium text-gray-900">Green Invoice (חשבונית ירוקה)</p>
-                  <p className="text-xs text-gray-500">Israeli invoicing — tax invoices, receipts, VAT</p>
+            <div className="py-3 border-t border-gray-100 mt-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <BookOpen className="w-5 h-5 text-green-600" />
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">Green Invoice (חשבונית ירוקה)</p>
+                    <p className="text-xs text-gray-500">Certified Israeli invoicing — digital receipts and tax documents sent directly to clients.</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  {greenInvoiceStatus ? (
+                    <>
+                      <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                        <CheckCircle className="w-3.5 h-3.5" /> Connected
+                      </span>
+                      {activeProvider === 'green_invoice' && (
+                        <span className="text-xs bg-primary-100 text-primary-700 font-medium px-2 py-0.5 rounded-full">In use</span>
+                      )}
+                      <button
+                        onClick={() => { setShowGreenInvoiceForm(v => !v); setShowICountForm(false) }}
+                        className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 px-3 py-1.5 rounded-lg">
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => confirm('Disconnect Green Invoice?') && greenInvoiceDisconnectMutation.mutate()}
+                        disabled={greenInvoiceDisconnectMutation.isPending}
+                        className="text-xs text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg">
+                        Disconnect
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex items-center gap-1 text-xs text-gray-400">
+                        <AlertCircle className="w-3.5 h-3.5" /> Not connected
+                      </span>
+                      <button
+                        onClick={() => { setShowGreenInvoiceForm(v => !v); setShowICountForm(false) }}
+                        className="btn-primary text-xs px-3 py-1.5">
+                        Connect
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                {greenInvoiceStatus ? (
-                  <>
-                    <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
-                      <CheckCircle className="w-3.5 h-3.5" /> Connected
-                    </span>
-                    {activeProvider === 'green_invoice' && (
-                      <span className="text-xs bg-primary-100 text-primary-700 font-medium px-2 py-0.5 rounded-full">In use</span>
-                    )}
-                    <button
-                      onClick={() => { setShowGreenInvoiceForm(v => !v); setShowICountForm(false) }}
-                      className="text-xs text-gray-600 hover:text-gray-900 border border-gray-300 px-3 py-1.5 rounded-lg">
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => confirm('Disconnect Green Invoice?') && greenInvoiceDisconnectMutation.mutate()}
-                      disabled={greenInvoiceDisconnectMutation.isPending}
-                      className="text-xs text-red-500 hover:text-red-700 border border-red-200 px-3 py-1.5 rounded-lg">
-                      Disconnect
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <span className="flex items-center gap-1 text-xs text-gray-400">
-                      <AlertCircle className="w-3.5 h-3.5" /> Not connected
-                    </span>
-                    <button
-                      onClick={() => { setShowGreenInvoiceForm(v => !v); setShowICountForm(false) }}
-                      className="btn-primary text-xs px-3 py-1.5">
-                      Connect
-                    </button>
-                  </>
-                )}
-              </div>
+              {!greenInvoiceStatus && (
+                <div className="mt-2 ml-8 text-xs text-gray-500">
+                  <span className="font-medium">Setup:</span> Log in to{' '}
+                  <a href="https://app.greeninvoice.co.il" target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline">Green Invoice</a>
+                  {' '}→ Settings → Developer Tools → API Keys → Create new key. Copy the <strong>Key ID</strong> and <strong>Secret</strong> and enter them above.
+                </div>
+              )}
+              {greenInvoiceStatus && (
+                <div className="mt-3 ml-8 flex items-center gap-3">
+                  <label className="text-xs text-gray-600 font-medium whitespace-nowrap">Document type:</label>
+                  <select
+                    value={greenInvoiceDocType}
+                    onChange={e => {
+                      setGreenInvoiceDocType(e.target.value)
+                      greenInvoiceDocTypeMutation.mutate(e.target.value)
+                    }}
+                    className="input text-xs py-1 w-auto"
+                  >
+                    <option value="receipt">קבלה (Receipt — type 400, works for all business types)</option>
+                    <option value="receipt_invoice">חשבון קבלה (Receipt Invoice — type 320)</option>
+                    <option value="invoice">חשבונית מס (Tax Invoice — type 305, עוסק מורשה only)</option>
+                  </select>
+                  {greenInvoiceDocTypeMutation.isPending && <span className="text-xs text-gray-400">Saving...</span>}
+                </div>
+              )}
             </div>
           )}
 

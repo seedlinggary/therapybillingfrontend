@@ -61,6 +61,10 @@ export const updateClient = (clientId: string, data: {
   notes?: string
   is_active?: boolean
   tax_exempt?: boolean
+  notify_appointment?: boolean
+  notify_invoice?: boolean
+  notify_receipt?: boolean
+  notify_reminder?: boolean
 }): Promise<TherapistClient> =>
   api.patch(`/therapist/clients/${clientId}`, data).then(r => r.data)
 

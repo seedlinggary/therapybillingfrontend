@@ -1,12 +1,11 @@
-import { useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useRef, useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, Link } from 'react-router-dom'
 import { listTherapistAppointments } from '../../api/appointments'
 import { listTherapistInvoices } from '../../api/invoices'
-import { listMyClients, getMyTherapistProfile } from '../../api/clients'
-import { CalendarView } from '../../components/therapist/CalendarView'
+import { listMyClients, getMyTherapistProfile, updateTherapistProfile } from '../../api/clients'
 import { format } from 'date-fns'
-import { Calendar, Users, FileText, DollarSign, ArrowRight } from 'lucide-react'
+import { Calendar, Users, DollarSign, ArrowRight, StickyNote } from 'lucide-react'
 
 function StatCard({ icon: Icon, label, value, sub }: { icon: any; label: string; value: string | number; sub?: string }) {
   return (
@@ -26,28 +25,68 @@ function StatCard({ icon: Icon, label, value, sub }: { icon: any; label: string;
 export function TherapistDashboard() {
   const today = new Date()
   const navigate = useNavigate()
+  const qc = useQueryClient()
 
   const { data: profile } = useQuery({
     queryKey: ['therapist-profile'],
     queryFn: getMyTherapistProfile,
   })
 
-  // Redirect to onboarding until Google Calendar is connected
   useEffect(() => {
     if (profile && !profile.google_calendar_connected) {
       navigate('/therapist/onboarding', { replace: true })
     }
   }, [profile])
 
-  const { data: appointments = [] } = useQuery({ queryKey: ['appointments'], queryFn: () => listTherapistAppointments() })
-  const { data: invoices = [] } = useQuery({ queryKey: ['invoices'], queryFn: () => listTherapistInvoices() })
-  const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: listMyClients })
+  const { data: appointments = [] } = useQuery({
+    queryKey: ['appointments'],
+    queryFn: () => listTherapistAppointments(),
+    staleTime: 60_000,
+  })
+  const { data: invoices = [] } = useQuery({
+    queryKey: ['invoices'],
+    queryFn: () => listTherapistInvoices(),
+    staleTime: 60_000,
+  })
+  const { data: clients = [] } = useQuery({
+    queryKey: ['clients'],
+    queryFn: listMyClients,
+    staleTime: 60_000,
+  })
 
-  const upcomingAppts = appointments.filter(a => a.status === 'scheduled' && new Date(a.start_time) >= today)
-  const todayAppts = upcomingAppts.filter(a => format(new Date(a.start_time), 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd'))
+  const todayAppts = appointments.filter(
+    a => a.status === 'scheduled' &&
+      format(new Date(a.start_time), 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')
+  )
   const unpaidInvoices = invoices.filter(i => i.status === 'unpaid')
   const unpaidTotal = unpaidInvoices.reduce((sum, i) => sum + i.amount, 0)
-  const sym = (profile?.default_currency === 'ILS') ? '₪' : '$'
+  const sym = profile?.default_currency === 'ILS' ? '₪' : '$'
+
+  // ── General note ────────────────────────────────────────────────────────────
+  const [note, setNote] = useState('')
+  const [noteSaved, setNoteSaved] = useState(false)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (profile?.dashboard_note !== undefined) {
+      setNote(profile.dashboard_note ?? '')
+    }
+  }, [profile?.dashboard_note])
+
+  const noteMutation = useMutation({
+    mutationFn: (text: string) => updateTherapistProfile({ dashboard_note: text }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['therapist-profile'] })
+      setNoteSaved(true)
+      setTimeout(() => setNoteSaved(false), 2000)
+    },
+  })
+
+  const handleNoteChange = (text: string) => {
+    setNote(text)
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => noteMutation.mutate(text), 1000)
+  }
 
   return (
     <div className="p-4 md:p-8">
@@ -56,28 +95,26 @@ export function TherapistDashboard() {
         <p className="text-gray-500 mt-1">{format(today, 'EEEE, MMMM d, yyyy')}</p>
       </div>
 
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         <StatCard icon={Calendar} label="Today's Sessions" value={todayAppts.length} />
-        <StatCard icon={Calendar} label="Upcoming Sessions" value={upcomingAppts.length} sub="next 30 days" />
         <StatCard icon={Users} label="Active Clients" value={clients.filter(c => c.is_active).length} />
-        <StatCard icon={DollarSign} label="Outstanding" value={`${sym}${unpaidTotal.toFixed(2)}`} sub={`${unpaidInvoices.length} unpaid invoices`} />
-      </div>
-
-      {/* Calendar */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-gray-900">Schedule</h2>
-          <Link to="/therapist/appointments" className="text-xs text-primary-600 hover:underline flex items-center gap-1">
-            Manage appointments <ArrowRight className="w-3 h-3" />
-          </Link>
-        </div>
-        <CalendarView appointments={appointments} currencySymbol={sym} />
+        <StatCard
+          icon={DollarSign}
+          label="Outstanding"
+          value={`${sym}${unpaidTotal.toFixed(2)}`}
+          sub={`${unpaidInvoices.length} unpaid invoice${unpaidInvoices.length !== 1 ? 's' : ''}`}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Today's appointments */}
         <div className="card">
-          <h2 className="font-semibold text-gray-900 mb-4">Today's Sessions</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-gray-900">Today's Sessions</h2>
+            <Link to="/therapist/appointments" className="text-xs text-primary-600 hover:underline flex items-center gap-1">
+              All <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
           {todayAppts.length === 0 ? (
             <p className="text-gray-400 text-sm">No sessions today.</p>
           ) : (
@@ -99,7 +136,12 @@ export function TherapistDashboard() {
 
         {/* Unpaid invoices */}
         <div className="card">
-          <h2 className="font-semibold text-gray-900 mb-4">Unpaid Invoices</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-gray-900">Unpaid Invoices</h2>
+            <Link to="/therapist/invoices" className="text-xs text-primary-600 hover:underline flex items-center gap-1">
+              All <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
           {unpaidInvoices.length === 0 ? (
             <p className="text-gray-400 text-sm">All invoices paid.</p>
           ) : (
@@ -120,6 +162,22 @@ export function TherapistDashboard() {
               )}
             </div>
           )}
+        </div>
+
+        {/* General note */}
+        <div className="card lg:col-span-2">
+          <div className="flex items-center gap-2 mb-3">
+            <StickyNote className="w-4 h-4 text-primary-600" />
+            <h2 className="font-semibold text-gray-900">Notes</h2>
+            {noteSaved && <span className="text-xs text-green-600 ml-auto">Saved</span>}
+          </div>
+          <textarea
+            value={note}
+            onChange={e => handleNoteChange(e.target.value)}
+            rows={5}
+            placeholder="Keep a running note to yourself — reminders, to-dos, anything you want to track..."
+            className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none leading-relaxed"
+          />
         </div>
       </div>
     </div>

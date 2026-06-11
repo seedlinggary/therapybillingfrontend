@@ -12,7 +12,7 @@ import clsx from 'clsx'
 const navItems = [
   { to: '/therapist', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/therapist/clients', label: 'Clients', icon: Users, end: false },
-  { to: '/therapist/appointments', label: 'Appointments', icon: Calendar, end: false },
+  { to: '/therapist/appointments', label: 'Schedule', icon: Calendar, end: false },
   { to: '/therapist/invoices', label: 'Invoices', icon: FileText, end: false },
   { to: '/therapist/documents', label: 'Documents', icon: BookOpen, end: false },
   { to: '/therapist/settings', label: 'Settings', icon: Settings, end: false },

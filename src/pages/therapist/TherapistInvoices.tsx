@@ -139,12 +139,13 @@ export function TherapistInvoices() {
   const [markPaidMethod, setMarkPaidMethod] = useState('cash')
   const [markPaidDate, setMarkPaidDate] = useState(() => new Date().toISOString().slice(0, 10))
 
-  const { data: profile } = useQuery({ queryKey: ['therapist-profile'], queryFn: getMyTherapistProfile })
+  const { data: profile } = useQuery({ queryKey: ['therapist-profile'], queryFn: getMyTherapistProfile, staleTime: 60_000 })
   const profileSym = profile?.default_currency === 'ILS' ? '₪' : '$'
 
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ['invoices', statusFilter],
     queryFn: () => listTherapistInvoices(statusFilter ? { status: statusFilter } : {}),
+    staleTime: 15_000,
   })
 
   // Auto-verify all unpaid Stripe invoices once per page load
@@ -400,6 +401,8 @@ export function TherapistInvoices() {
                 <option value="cash">Cash</option>
                 <option value="bank_transfer">Bank Transfer</option>
                 <option value="credit_card">Credit Card</option>
+                <option value="bit">Bit</option>
+                <option value="paybox">Paybox</option>
               </select>
             </div>
             <div className="flex gap-3 pt-2">

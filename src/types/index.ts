@@ -25,8 +25,11 @@ export interface Therapist {
   paypal_connected: boolean
   show_conversion_note: boolean
   reminder_frequency_days?: number
+  reminder_repeat: boolean
+  dashboard_note?: string
   created_at: string
 }
+
 
 export interface Client {
   id: string
@@ -52,6 +55,10 @@ export interface TherapistClient {
   billing_frequency: BillingFrequency
   billing_anchor_day?: number
   tax_exempt: boolean
+  notify_appointment: boolean
+  notify_invoice: boolean
+  notify_receipt: boolean
+  notify_reminder: boolean
   created_at: string
 }
 
@@ -123,6 +130,7 @@ export interface AccountingIntegration {
   provider: AccountingProvider
   company_id?: string
   is_active: boolean
+  green_invoice_doc_type?: string
   created_at: string
   updated_at: string
 }

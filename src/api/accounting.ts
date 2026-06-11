@@ -22,6 +22,9 @@ export const disconnectAccounting = (provider: string): Promise<void> =>
 export const getAccountingStatus = (): Promise<AccountingIntegration[]> =>
   api.get('/integrations/accounting/status').then(r => r.data)
 
+export const updateGreenInvoiceDocType = (doc_type: string): Promise<AccountingIntegration> =>
+  api.patch('/integrations/accounting/doc-type', { green_invoice_doc_type: doc_type }).then(r => r.data)
+
 // ── Documents ─────────────────────────────────────────────────────────────────
 
 export interface ListDocumentsParams {

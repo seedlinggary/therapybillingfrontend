@@ -149,6 +149,7 @@ export function TherapistDocuments() {
   const { data: profile } = useQuery({
     queryKey: ['therapist-profile'],
     queryFn: getMyTherapistProfile,
+    staleTime: 60_000,
   })
 
   const isIL = (profile?.country || 'US').toUpperCase() === 'IL'
@@ -162,18 +163,21 @@ export function TherapistDocuments() {
       status: statusFilter || undefined,
     }),
     enabled: tab === 'documents',
+    staleTime: 15_000,
   })
 
   const { data: report, isLoading: reportLoading } = useQuery({
     queryKey: ['accounting-report', reportYear],
     queryFn: () => getMonthlyReport(reportYear),
     enabled: tab === 'reports',
+    staleTime: 5 * 60_000,
   })
 
   const { data: auditLogs = [], isLoading: auditLoading } = useQuery({
     queryKey: ['audit-logs'],
     queryFn: () => listAuditLogs({ limit: 100 }),
     enabled: tab === 'audit',
+    staleTime: 30_000,
   })
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['accounting-docs'] })
