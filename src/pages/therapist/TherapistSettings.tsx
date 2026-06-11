@@ -11,6 +11,7 @@ import {
 } from '../../api/clients'
 import {
   connectAccounting, disconnectAccounting, getAccountingStatus, updateGreenInvoiceDocType,
+  setActiveAccountingProvider,
 } from '../../api/accounting'
 import { getExchangeRate } from '../../api/clients'
 import { listServiceTypes, createServiceType, updateServiceType, deleteServiceType } from '../../api/serviceTypes'
@@ -277,6 +278,15 @@ export function TherapistSettings() {
       toast.success('Document type updated')
     },
     onError: () => toast.error('Failed to update document type'),
+  })
+
+  const setActiveMutation = useMutation({
+    mutationFn: (provider: string) => setActiveAccountingProvider(provider),
+    onSuccess: (_, provider) => {
+      qc.invalidateQueries({ queryKey: ['accounting-status'] })
+      toast.success(`Switched to ${provider === 'icount' ? 'iCount' : 'Green Invoice'}`)
+    },
+    onError: () => toast.error('Failed to switch provider'),
   })
 
   const payMeConnectMutation = useMutation({
@@ -933,14 +943,37 @@ export function TherapistSettings() {
             </div>
           )}
 
-          {/* Both connected — explain which is in use */}
+          {/* Both connected — active provider toggle */}
           {isIL && iCountStatus && greenInvoiceStatus && (
-            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mt-2 text-xs text-amber-800">
-              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-              <span>
-                Both iCount and Green Invoice are connected. The one most recently saved is used for billing — currently <strong>{activeProvider === 'icount' ? 'iCount' : 'Green Invoice'}</strong>.
-                To switch, save the other provider's credentials again or disconnect the one you don't want.
-              </span>
+            <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 mt-2">
+              <div>
+                <p className="text-sm font-medium text-gray-800">Active invoicing provider</p>
+                <p className="text-xs text-gray-500 mt-0.5">Both are connected — choose which one issues documents.</p>
+              </div>
+              <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg p-1 shadow-sm">
+                <button
+                  onClick={() => activeProvider !== 'icount' && setActiveMutation.mutate('icount')}
+                  disabled={setActiveMutation.isPending}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    activeProvider === 'icount'
+                      ? 'bg-primary-600 text-white shadow-sm'
+                      : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                >
+                  iCount
+                </button>
+                <button
+                  onClick={() => activeProvider !== 'green_invoice' && setActiveMutation.mutate('green_invoice')}
+                  disabled={setActiveMutation.isPending}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    activeProvider === 'green_invoice'
+                      ? 'bg-primary-600 text-white shadow-sm'
+                      : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                >
+                  Green Invoice
+                </button>
+              </div>
             </div>
           )}
 

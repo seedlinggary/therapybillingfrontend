@@ -25,6 +25,9 @@ export const getAccountingStatus = (): Promise<AccountingIntegration[]> =>
 export const updateGreenInvoiceDocType = (doc_type: string): Promise<AccountingIntegration> =>
   api.patch('/integrations/accounting/doc-type', { green_invoice_doc_type: doc_type }).then(r => r.data)
 
+export const setActiveAccountingProvider = (provider: string): Promise<{ ok: boolean; active_provider: string }> =>
+  api.patch('/integrations/accounting/set-active', null, { params: { provider } }).then(r => r.data)
+
 // ── Documents ─────────────────────────────────────────────────────────────────
 
 export interface ListDocumentsParams {
