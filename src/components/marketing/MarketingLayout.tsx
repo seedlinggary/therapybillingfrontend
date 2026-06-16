@@ -141,7 +141,7 @@ export function MarketingLayout() {
             {/* Contact */}
             <div>
               <h4 className="text-white text-sm font-semibold mb-3">Get in Touch</h4>
-              <a href="mailto:gary.s.schwartz617@gmail.com" className="flex items-center gap-2 text-sm hover:text-white transition-colors">
+              <a href="mailto:seedling.gary@gmail.com" className="flex items-center gap-2 text-sm hover:text-white transition-colors">
                 <Mail className="w-4 h-4" /> Send us an email
               </a>
             </div>

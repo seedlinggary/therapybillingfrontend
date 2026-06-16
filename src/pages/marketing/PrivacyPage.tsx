@@ -165,8 +165,8 @@ export function PrivacyPage() {
           <h2 className="text-xl font-bold text-gray-900 mb-3">11. Contact</h2>
           <p className="text-gray-600 leading-relaxed">
             For any privacy-related questions or requests, please contact us at:{' '}
-            <a href="mailto:gary.s.schwartz617@gmail.com" className="text-primary-600 hover:underline">
-              gary.s.schwartz617@gmail.com
+            <a href="mailto:seedling.gary@gmail.com" className="text-primary-600 hover:underline">
+              seedling.gary@gmail.com
             </a>
           </p>
         </section>
