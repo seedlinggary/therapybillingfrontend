@@ -43,7 +43,7 @@ export function ClientLayout() {
             <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
               <span className="text-white text-sm font-bold">P</span>
             </div>
-            <span className="font-semibold text-gray-900">PracticeBilling</span>
+            <span className="font-semibold text-gray-900">AutoInvoice</span>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
@@ -100,7 +100,7 @@ export function ClientLayout() {
             <div className="w-6 h-6 bg-primary-600 rounded flex items-center justify-center">
               <span className="text-white text-xs font-bold">T</span>
             </div>
-            <span className="font-semibold text-gray-900 text-sm">PracticeBilling</span>
+            <span className="font-semibold text-gray-900 text-sm">AutoInvoice</span>
           </div>
         </header>
 

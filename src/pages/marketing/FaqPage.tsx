@@ -7,8 +7,8 @@ const categories = [
     label: 'Getting Started',
     faqs: [
       {
-        q: 'What types of businesses can use PracticeBilling?',
-        a: 'Any service-based business that schedules appointments and invoices clients — therapists, psychologists, nutritionists, personal trainers, barbers, nail salons, physiotherapists, tutors, lawyers, coaches, and more. If you take appointments and need to get paid, PracticeBilling works for you.',
+        q: 'What types of businesses can use AutoInvoice?',
+        a: 'Any service-based business that schedules appointments and invoices clients — therapists, psychologists, nutritionists, personal trainers, barbers, nail salons, physiotherapists, tutors, lawyers, coaches, and more. If you take appointments and need to get paid, AutoInvoice works for you.',
       },
       {
         q: 'How do I create an account?',
@@ -25,7 +25,7 @@ const categories = [
     faqs: [
       {
         q: 'How does automatic billing work?',
-        a: 'When you mark an appointment as complete, PracticeBilling immediately creates an invoice and emails it to your client with a payment link — no manual steps required. You can choose the billing frequency per client: same day (instant), next day, weekly, biweekly, or monthly batching.',
+        a: 'When you mark an appointment as complete, AutoInvoice immediately creates an invoice and emails it to your client with a payment link — no manual steps required. You can choose the billing frequency per client: same day (instant), next day, weekly, biweekly, or monthly batching.',
       },
       {
         q: 'Can I create invoices that aren\'t tied to an appointment?',
@@ -33,7 +33,7 @@ const categories = [
       },
       {
         q: 'Can I batch multiple sessions into one invoice?',
-        a: 'Yes. If a client\'s billing frequency is set to weekly, biweekly, or monthly, PracticeBilling automatically groups all completed appointments in that period into a single invoice. Your client receives one clean invoice instead of multiple individual ones.',
+        a: 'Yes. If a client\'s billing frequency is set to weekly, biweekly, or monthly, AutoInvoice automatically groups all completed appointments in that period into a single invoice. Your client receives one clean invoice instead of multiple individual ones.',
       },
       {
         q: 'What if I need to adjust an invoice amount?',
@@ -63,7 +63,7 @@ const categories = [
     faqs: [
       {
         q: 'How do payment reminders work?',
-        a: 'Go to Settings → Payment Reminders and set the frequency (e.g., every 7 days). PracticeBilling will automatically email any client with outstanding invoices at that interval. Each client receives one consolidated email listing all their unpaid invoices — not a separate email per invoice.',
+        a: 'Go to Settings → Payment Reminders and set the frequency (e.g., every 7 days). AutoInvoice will automatically email any client with outstanding invoices at that interval. Each client receives one consolidated email listing all their unpaid invoices — not a separate email per invoice.',
       },
       {
         q: 'Will clients who just received an invoice immediately get a reminder too?',
@@ -76,11 +76,11 @@ const categories = [
     faqs: [
       {
         q: 'Can I connect my Google Calendar?',
-        a: 'Yes. From Settings → Integrations, click "Connect Google Calendar." All appointments you create in PracticeBilling will appear in your Google Calendar automatically. Changes to times sync back as well.',
+        a: 'Yes. From Settings → Integrations, click "Connect Google Calendar." All appointments you create in AutoInvoice will appear in your Google Calendar automatically. Changes to times sync back as well.',
       },
       {
         q: 'How do recurring appointments work?',
-        a: 'From the Appointments page, click "New Appointment" and toggle to the recurring option. Set the frequency (weekly, biweekly, monthly), start date, and number of occurrences or end date. PracticeBilling creates all appointments and syncs the full series to Google Calendar.',
+        a: 'From the Appointments page, click "New Appointment" and toggle to the recurring option. Set the frequency (weekly, biweekly, monthly), start date, and number of occurrences or end date. AutoInvoice creates all appointments and syncs the full series to Google Calendar.',
       },
       {
         q: 'Can I set default durations for different services?',
@@ -92,11 +92,11 @@ const categories = [
     label: 'Israeli Accounting',
     faqs: [
       {
-        q: 'Is PracticeBilling compliant with Israeli accounting regulations?',
+        q: 'Is AutoInvoice compliant with Israeli accounting regulations?',
         a: 'Yes. We have built-in integrations with iCount and Green Invoice — the two leading Israeli accounting platforms. Tax invoices and receipts are issued automatically when a payment is made or marked as received.',
       },
       {
-        q: 'What currencies does PracticeBilling support?',
+        q: 'What currencies does AutoInvoice support?',
         a: 'We support USD and ILS (Israeli Shekel). You can also enable an optional exchange rate conversion note on invoice emails, showing clients the current conversion rate between the two currencies.',
       },
     ],
@@ -147,7 +147,7 @@ export function FaqPage() {
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
           <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-4">Frequently asked questions</h1>
           <p className="text-xl text-gray-500">
-            Everything you need to know about PracticeBilling.{' '}
+            Everything you need to know about AutoInvoice.{' '}
             <Link to="/contact" className="text-primary-600 hover:underline">Can't find your answer? Ask us.</Link>
           </p>
         </div>

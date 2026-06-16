@@ -20,9 +20,9 @@ const values = [
 ]
 
 const milestones = [
-  { year: '2023', event: 'PracticeBilling founded out of frustration with existing billing tools for service professionals.' },
+  { year: '2023', event: 'AutoInvoice founded out of frustration with existing billing tools for service professionals.' },
   { year: '2024', event: 'Launched with core invoicing, Stripe Connect, and Google Calendar sync. First 50 businesses onboarded.' },
-  { year: '2024', event: 'Added iCount and Green Invoice integration, making PracticeBilling the only billing tool with full Israeli compliance built-in.' },
+  { year: '2024', event: 'Added iCount and Green Invoice integration, making AutoInvoice the only billing tool with full Israeli compliance built-in.' },
   { year: '2025', event: 'Expanded to any service-based business. Introduced custom service types, PayMe, PayPal, and automated payment reminders.' },
   { year: '2025', event: 'Crossed 500 active businesses and 10,000 invoices processed.' },
 ]
@@ -37,7 +37,7 @@ export function AboutPage() {
             We built the billing tool<br />we always wished existed.
           </h1>
           <p className="text-xl text-gray-600 leading-relaxed max-w-2xl mx-auto">
-            PracticeBilling was born out of a simple frustration: every billing tool was either too complicated,
+            AutoInvoice was born out of a simple frustration: every billing tool was either too complicated,
             too expensive, or too generic to handle the specific needs of service-based practitioners.
           </p>
         </div>
@@ -56,7 +56,7 @@ export function AboutPage() {
                 invoice generators that required everything to be done by hand.
               </p>
               <p>
-                We built PracticeBilling to automate the entire billing lifecycle: from scheduling an appointment,
+                We built AutoInvoice to automate the entire billing lifecycle: from scheduling an appointment,
                 to confirming it's complete, to the invoice landing in the client's inbox, to the payment receipt
                 being issued — all without a single manual step.
               </p>
@@ -66,7 +66,7 @@ export function AboutPage() {
                 that adapts to any service-based business — not just one profession.
               </p>
               <p>
-                Today, PracticeBilling handles thousands of invoices every month for hundreds of businesses.
+                Today, AutoInvoice handles thousands of invoices every month for hundreds of businesses.
                 But our goal stays the same: give every service professional the tools to get paid on time,
                 automatically, without lifting a finger.
               </p>
@@ -119,7 +119,7 @@ export function AboutPage() {
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-2xl font-extrabold text-gray-900 mb-4">A small team with a big focus</h2>
           <p className="text-gray-600 leading-relaxed mb-8 max-w-xl mx-auto">
-            PracticeBilling is built and maintained by a small, focused team. We stay small on purpose —
+            AutoInvoice is built and maintained by a small, focused team. We stay small on purpose —
             it keeps us close to our customers and laser-focused on what matters: helping you get paid.
           </p>
           <p className="text-sm text-gray-500">

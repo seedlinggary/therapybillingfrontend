@@ -18,7 +18,7 @@ const features = [
   {
     icon: Bell,
     title: 'Payment Reminders',
-    desc: 'Set a reminder cadence and PracticeBilling emails clients with outstanding balances — one consolidated email, never spam.',
+    desc: 'Set a reminder cadence and AutoInvoice emails clients with outstanding balances — one consolidated email, never spam.',
   },
   {
     icon: CreditCard,
@@ -97,7 +97,7 @@ export function HomePage() {
               <span className="text-primary-600">Focus on your clients.</span>
             </h1>
             <p className="text-xl text-gray-600 leading-relaxed mb-8 max-w-2xl">
-              PracticeBilling handles invoicing, payment reminders, and accounting compliance for any service-based business — from therapists to barbershops.
+              AutoInvoice handles invoicing, payment reminders, and accounting compliance for any service-based business — from therapists to barbershops.
             </p>
             <div className="flex flex-wrap gap-4">
               <Link
@@ -213,7 +213,7 @@ export function HomePage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-4">Built for every service business</h2>
           <p className="text-lg text-gray-500 mb-10 max-w-2xl mx-auto">
-            Not just therapists. If you take appointments and invoice clients, PracticeBilling works for you.
+            Not just therapists. If you take appointments and invoice clients, AutoInvoice works for you.
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             {[
@@ -262,7 +262,7 @@ export function HomePage() {
             Ready to get paid without the hassle?
           </h2>
           <p className="text-lg text-gray-500 mb-8">
-            Join hundreds of service professionals who've automated their billing with PracticeBilling.
+            Join hundreds of service professionals who've automated their billing with AutoInvoice.
           </p>
           <div className="flex flex-wrap gap-4 justify-center">
             <Link to="/contact" className="btn-primary px-8 py-3 text-base rounded-xl flex items-center gap-2">

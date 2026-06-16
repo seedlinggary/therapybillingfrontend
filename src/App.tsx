@@ -9,6 +9,8 @@ import { PricingPage } from './pages/marketing/PricingPage'
 import { FaqPage } from './pages/marketing/FaqPage'
 import { AboutPage } from './pages/marketing/AboutPage'
 import { ContactPage } from './pages/marketing/ContactPage'
+import { PrivacyPage } from './pages/marketing/PrivacyPage'
+import { TermsPage } from './pages/marketing/TermsPage'
 
 // Auth pages
 import { GoogleAuthCallback } from './pages/auth/GoogleAuthCallback'
@@ -107,6 +109,8 @@ export default function App() {
         <Route path="/faq" element={<FaqPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/contact" element={<ContactPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/terms" element={<TermsPage />} />
       </Route>
     </Routes>
   )

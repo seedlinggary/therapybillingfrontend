@@ -8,7 +8,7 @@ const sections = [
   {
     tag: 'Invoicing',
     title: 'Billing that happens automatically',
-    desc: 'Stop chasing payments. PracticeBilling creates, sends, and tracks invoices the moment work is done.',
+    desc: 'Stop chasing payments. AutoInvoice creates, sends, and tracks invoices the moment work is done.',
     color: 'bg-indigo-50',
     iconColor: 'text-primary-600',
     items: [
@@ -38,7 +38,7 @@ const sections = [
     color: 'bg-amber-50',
     iconColor: 'text-amber-600',
     items: [
-      { icon: Bell, title: 'Automated reminders', desc: 'Set a reminder frequency (e.g. every 7 days) and PracticeBilling emails clients with outstanding balances automatically.' },
+      { icon: Bell, title: 'Automated reminders', desc: 'Set a reminder frequency (e.g. every 7 days) and AutoInvoice emails clients with outstanding balances automatically.' },
       { icon: Users, title: 'Consolidated emails', desc: 'One email per client listing all unpaid invoices — never multiple separate emails for the same client.' },
       { icon: Zap, title: 'Smart exclusions', desc: 'Invoices issued in the last 24h are excluded (they already received the original email). No double-dipping.' },
       { icon: Settings, title: 'Fully customizable', desc: 'Choose your reminder interval. Disable anytime. Each client can also have individual billing settings.' },
@@ -82,7 +82,7 @@ export function FeaturesPage() {
             Every feature you need.<br />Nothing you don't.
           </h1>
           <p className="text-xl text-gray-500 mb-8">
-            PracticeBilling handles the full billing lifecycle — from scheduling to payment receipt — with no manual work required.
+            AutoInvoice handles the full billing lifecycle — from scheduling to payment receipt — with no manual work required.
           </p>
           <Link to="/contact" className="btn-primary px-8 py-3 text-base rounded-xl inline-flex items-center gap-2">
             Get Started Free <ChevronRight className="w-4 h-4" />

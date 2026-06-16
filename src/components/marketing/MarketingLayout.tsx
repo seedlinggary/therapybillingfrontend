@@ -25,7 +25,7 @@ export function MarketingLayout() {
               <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
                 <Zap className="w-4 h-4 text-white" />
               </div>
-              <span className="font-bold text-gray-900 text-lg">PracticeBilling</span>
+              <span className="font-bold text-gray-900 text-lg">AutoInvoice</span>
             </Link>
 
             {/* Desktop nav */}
@@ -103,7 +103,7 @@ export function MarketingLayout() {
                 <div className="w-7 h-7 bg-primary-600 rounded-md flex items-center justify-center">
                   <Zap className="w-3.5 h-3.5 text-white" />
                 </div>
-                <span className="font-bold text-white">PracticeBilling</span>
+                <span className="font-bold text-white">AutoInvoice</span>
               </div>
               <p className="text-sm leading-relaxed">
                 Automated billing for every service-based business.
@@ -129,6 +129,15 @@ export function MarketingLayout() {
               </ul>
             </div>
 
+            {/* Legal */}
+            <div>
+              <h4 className="text-white text-sm font-semibold mb-3">Legal</h4>
+              <ul className="space-y-2 text-sm">
+                <li><Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
+                <li><Link to="/terms" className="hover:text-white transition-colors">Terms of Service</Link></li>
+              </ul>
+            </div>
+
             {/* Contact */}
             <div>
               <h4 className="text-white text-sm font-semibold mb-3">Get in Touch</h4>
@@ -139,7 +148,11 @@ export function MarketingLayout() {
           </div>
 
           <div className="border-t border-gray-800 pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
-            <p>© {new Date().getFullYear()} PracticeBilling. All rights reserved.</p>
+            <div className="flex flex-wrap items-center gap-4">
+              <p>© {new Date().getFullYear()} AutoInvoice. All rights reserved.</p>
+              <Link to="/privacy" className="hover:text-white transition-colors">Privacy</Link>
+              <Link to="/terms" className="hover:text-white transition-colors">Terms</Link>
+            </div>
             <div className="flex gap-4">
               <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                 <Twitter className="w-4 h-4" />
