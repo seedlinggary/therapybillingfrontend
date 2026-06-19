@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
@@ -148,21 +148,6 @@ export function TherapistInvoices() {
     staleTime: 15_000,
   })
 
-  // Auto-verify all unpaid Stripe invoices once per page load
-  const autoChecked = useRef(false)
-  useEffect(() => {
-    if (autoChecked.current || isLoading) return
-    const unpaid = invoices.filter(inv => inv.status === 'unpaid' && (inv.stripe_payment_link || (!inv.payment_provider || inv.payment_provider === 'stripe')))
-    if (unpaid.length === 0) return
-    autoChecked.current = true
-    Promise.allSettled(unpaid.map(inv => verifyStripePayment(inv.id))).then(results => {
-      const paid = results.filter(r => r.status === 'fulfilled').length
-      if (paid > 0) {
-        qc.invalidateQueries({ queryKey: ['invoices'] })
-        toast.success(`${paid} invoice${paid > 1 ? 's' : ''} marked as paid via Stripe`)
-      }
-    })
-  }, [isLoading, invoices])
 
   const { data: completedAppts = [] } = useQuery({
     queryKey: ['appointments-completed'],

@@ -16,7 +16,7 @@ import {
 import { getExchangeRate } from '../../api/clients'
 import { listServiceTypes, createServiceType, updateServiceType, deleteServiceType } from '../../api/serviceTypes'
 import type { ServiceType } from '../../api/serviceTypes'
-import { CreditCard, User, Calendar, Link2, CheckCircle, AlertCircle, Clock, BookOpen, Briefcase, Plus, Pencil, Trash2, Check, X as XIcon, Bell } from 'lucide-react'
+import { CreditCard, User, Calendar, Link2, CheckCircle, AlertCircle, Clock, BookOpen, Briefcase, Plus, Pencil, Trash2, Check, X as XIcon, Bell, Mail } from 'lucide-react'
 import type { BillingFrequency } from '../../types'
 
 interface SettingsForm {
@@ -35,6 +35,8 @@ interface SettingsForm {
   show_conversion_note: boolean
   reminder_frequency_days: number
   reminder_repeat: boolean
+  accounting_send_email_invoice: boolean
+  accounting_send_email_receipt: boolean
 }
 
 const TIMEZONES = [
@@ -65,7 +67,7 @@ export function TherapistSettings() {
   const [iCountForm, setICountForm] = useState({ company_id: '', username: '', api_key: '' })
   const [showGreenInvoiceForm, setShowGreenInvoiceForm] = useState(false)
   const [greenInvoiceForm, setGreenInvoiceForm] = useState({ api_key_id: '', api_key_secret: '' })
-  const [greenInvoiceDocType, setGreenInvoiceDocType] = useState('receipt')
+  const [greenInvoiceDocType, setGreenInvoiceDocType] = useState('receipt_invoice')
   const [showPayMeForm, setShowPayMeForm] = useState(false)
   const [payMeForm, setPayMeForm] = useState({ seller_id: '', api_key: '' })
   const [showPayPalForm, setShowPayPalForm] = useState(false)
@@ -161,14 +163,14 @@ export function TherapistSettings() {
         show_conversion_note: profile.show_conversion_note ?? false,
         reminder_frequency_days: profile.reminder_frequency_days ?? 0,
         reminder_repeat: profile.reminder_repeat ?? true,
+        accounting_send_email_invoice: profile.accounting_send_email_invoice ?? false,
+        accounting_send_email_receipt: profile.accounting_send_email_receipt ?? true,
       })
     }
   }, [profile])
 
   useEffect(() => {
-    if (greenInvoiceStatus?.green_invoice_doc_type) {
-      setGreenInvoiceDocType(greenInvoiceStatus.green_invoice_doc_type)
-    }
+    setGreenInvoiceDocType(greenInvoiceStatus?.green_invoice_doc_type || 'receipt_invoice')
   }, [greenInvoiceStatus])
 
   const saveMutation = useMutation({
@@ -722,6 +724,45 @@ export function TherapistSettings() {
             )}
           </div>
         </div>
+
+        {/* ── Accounting Email Settings — Israel only ── */}
+        {isIL && (
+          <div className="card">
+            <div className="flex items-center gap-3 mb-2">
+              <Mail className="w-5 h-5 text-primary-600" />
+              <h2 className="font-semibold text-gray-900">Accounting Email Notifications</h2>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">
+              Control whether iCount / Green Invoice sends the document to the client by email when each type is issued.
+            </p>
+            <div className="space-y-3">
+              <label className="flex items-center gap-3 cursor-pointer p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
+                <input
+                  id="accounting_send_email_receipt"
+                  type="checkbox"
+                  {...register('accounting_send_email_receipt')}
+                  className="w-4 h-4 accent-primary-600"
+                />
+                <div>
+                  <p className="text-sm font-medium text-gray-800">Send email when issuing a receipt or receipt-invoice</p>
+                  <p className="text-xs text-gray-500">The provider emails the document to the client automatically. On by default.</p>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 cursor-pointer p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
+                <input
+                  id="accounting_send_email_invoice"
+                  type="checkbox"
+                  {...register('accounting_send_email_invoice')}
+                  className="w-4 h-4 accent-primary-600"
+                />
+                <div>
+                  <p className="text-sm font-medium text-gray-800">Send email when issuing an invoice</p>
+                  <p className="text-xs text-gray-500">Invoices are for bookkeeping — off by default since a separate invoice email is already sent by AutoInvoice.</p>
+                </div>
+              </label>
+            </div>
+          </div>
+        )}
 
         <div className="flex justify-end">
           <button type="submit" disabled={saveMutation.isPending || !isDirty} className="btn-primary px-6">

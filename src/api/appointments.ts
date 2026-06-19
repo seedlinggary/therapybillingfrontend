@@ -54,3 +54,14 @@ export const listClientAppointments = (params?: { therapist_id?: string; status?
 
 export const getClientAppointment = (id: string): Promise<Appointment> =>
   api.get(`/client/appointments/${id}`).then(r => r.data)
+
+export interface ExternalCalendarEvent {
+  id: string
+  title: string
+  start: string
+  end: string
+  all_day: boolean
+}
+
+export const listGoogleCalendarEvents = (start: string, end: string): Promise<ExternalCalendarEvent[]> =>
+  api.get('/onboarding/google-calendar/events', { params: { start, end } }).then(r => r.data)

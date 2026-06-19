@@ -26,6 +26,8 @@ export interface Therapist {
   show_conversion_note: boolean
   reminder_frequency_days?: number
   reminder_repeat: boolean
+  accounting_send_email_invoice: boolean
+  accounting_send_email_receipt: boolean
   dashboard_note?: string
   created_at: string
 }

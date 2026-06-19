@@ -7,13 +7,16 @@ import {
 } from 'date-fns'
 import { ChevronLeft, ChevronRight, Pencil, CheckCircle } from 'lucide-react'
 import type { Appointment } from '../../types'
+import type { ExternalCalendarEvent } from '../../api/appointments'
 
 interface Props {
   appointments: Appointment[]
+  externalEvents?: ExternalCalendarEvent[]
   onAppointmentClick?: (appt: Appointment) => void
   onEdit?: (appt: Appointment) => void
   onConfirm?: (appt: Appointment) => void
   currencySymbol?: string
+  onRangeChange?: (start: string, end: string) => void
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -30,9 +33,10 @@ const TOTAL_HOURS = HOUR_END - HOUR_START
 
 // ── Week view ────────────────────────────────────────────────────────────────
 
-function WeekView({ anchor, appointments, onAppointmentClick }: {
+function WeekView({ anchor, appointments, externalEvents = [], onAppointmentClick }: {
   anchor: Date
   appointments: Appointment[]
+  externalEvents?: ExternalCalendarEvent[]
   onAppointmentClick?: (a: Appointment) => void
 }) {
   const days = eachDayOfInterval({
@@ -40,13 +44,13 @@ function WeekView({ anchor, appointments, onAppointmentClick }: {
     end:   endOfWeek(anchor,   { weekStartsOn: 1 }),
   })
 
-  function apptStyle(appt: Appointment) {
-    const s = new Date(appt.start_time)
-    const e = new Date(appt.end_time)
-    const topMinutes  = (s.getHours() - HOUR_START) * 60 + s.getMinutes()
-    const durMinutes  = (e.getTime() - s.getTime()) / 60_000
+  function timeStyle(start: string, end: string) {
+    const s = new Date(start)
+    const e = new Date(end)
+    const topMinutes = (s.getHours() - HOUR_START) * 60 + s.getMinutes()
+    const durMinutes = (e.getTime() - s.getTime()) / 60_000
     return {
-      top:    `${(topMinutes  / 60) * HOUR_PX}px`,
+      top:    `${(topMinutes / 60) * HOUR_PX}px`,
       height: `${Math.max((durMinutes / 60) * HOUR_PX, 22)}px`,
     }
   }
@@ -71,6 +75,7 @@ function WeekView({ anchor, appointments, onAppointmentClick }: {
       <div className="flex flex-1 min-w-0">
         {days.map(day => {
           const dayAppts = appointments.filter(a => isSameDay(new Date(a.start_time), day))
+          const dayExternal = externalEvents.filter(e => !e.all_day && isSameDay(new Date(e.start), day))
           return (
             <div key={day.toISOString()} className="flex-1 min-w-[90px] border-r border-gray-200 last:border-r-0">
               {/* Day header */}
@@ -92,17 +97,25 @@ function WeekView({ anchor, appointments, onAppointmentClick }: {
                   <button
                     key={appt.id}
                     onClick={() => onAppointmentClick?.(appt)}
-                    style={apptStyle(appt)}
+                    style={timeStyle(appt.start_time, appt.end_time)}
                     className={`absolute left-0.5 right-0.5 rounded border-l-2 px-1 text-left overflow-hidden
                       transition-opacity hover:opacity-80 ${STATUS_COLORS[appt.status] ?? STATUS_COLORS.scheduled}`}
                   >
-                    <p className="text-xs font-semibold truncate leading-tight">
-                      {appt.client_name}
-                    </p>
-                    <p className="text-xs opacity-75 leading-tight">
-                      {format(new Date(appt.start_time), 'h:mm a')}
-                    </p>
+                    <p className="text-xs font-semibold truncate leading-tight">{appt.client_name}</p>
+                    <p className="text-xs opacity-75 leading-tight">{format(new Date(appt.start_time), 'h:mm a')} – {format(new Date(appt.end_time), 'h:mm a')}</p>
                   </button>
+                ))}
+                {dayExternal.map(evt => (
+                  <div
+                    key={evt.id}
+                    style={timeStyle(evt.start, evt.end)}
+                    title={evt.title}
+                    className="absolute left-0.5 right-0.5 rounded border-l-2 px-1 overflow-hidden
+                      bg-slate-200 border-slate-500 text-slate-800 cursor-default"
+                  >
+                    <p className="text-xs font-medium truncate leading-tight">{evt.title}</p>
+                    <p className="text-xs opacity-75 leading-tight">{format(new Date(evt.start), 'h:mm a')}{evt.end && evt.end !== evt.start ? ` – ${format(new Date(evt.end), 'h:mm a')}` : ''}</p>
+                  </div>
                 ))}
               </div>
             </div>
@@ -115,12 +128,12 @@ function WeekView({ anchor, appointments, onAppointmentClick }: {
 
 // ── Month view ───────────────────────────────────────────────────────────────
 
-function MonthView({ anchor, appointments, onAppointmentClick }: {
+function MonthView({ anchor, appointments, externalEvents = [], onAppointmentClick }: {
   anchor: Date
   appointments: Appointment[]
+  externalEvents?: ExternalCalendarEvent[]
   onAppointmentClick?: (a: Appointment) => void
 }) {
-  // Grid: Mon–Sun, padded to full weeks
   const monthStart  = startOfMonth(anchor)
   const monthEnd    = endOfMonth(anchor)
   const gridStart   = startOfWeek(monthStart, { weekStartsOn: 1 })
@@ -138,8 +151,11 @@ function MonthView({ anchor, appointments, onAppointmentClick }: {
 
       <div className="grid grid-cols-7 divide-x divide-y divide-gray-100">
         {days.map(day => {
-          const dayAppts = appointments.filter(a => isSameDay(new Date(a.start_time), day))
-          const inMonth  = isSameMonth(day, anchor)
+          const dayAppts    = appointments.filter(a => isSameDay(new Date(a.start_time), day))
+          const dayExternal = externalEvents.filter(e => isSameDay(new Date(e.start), day))
+          const inMonth     = isSameMonth(day, anchor)
+          const totalItems  = dayAppts.length + dayExternal.length
+          const slots       = 3
           return (
             <div
               key={day.toISOString()}
@@ -153,18 +169,28 @@ function MonthView({ anchor, appointments, onAppointmentClick }: {
                 {format(day, 'd')}
               </span>
               <div className="space-y-0.5">
-                {dayAppts.slice(0, 3).map(appt => (
+                {dayAppts.slice(0, slots).map(appt => (
                   <button
                     key={appt.id}
                     onClick={() => onAppointmentClick?.(appt)}
                     className={`w-full text-left text-xs rounded px-1 py-0.5 truncate border-l-2
                       hover:opacity-80 transition-opacity ${STATUS_COLORS[appt.status] ?? STATUS_COLORS.scheduled}`}
                   >
-                    {format(new Date(appt.start_time), 'h:mm a')} {appt.client_name}
+                    {format(new Date(appt.start_time), 'h:mm a')}–{format(new Date(appt.end_time), 'h:mm a')} {appt.client_name}
                   </button>
                 ))}
-                {dayAppts.length > 3 && (
-                  <p className="text-xs text-gray-400 pl-1">+{dayAppts.length - 3} more</p>
+                {dayExternal.slice(0, Math.max(0, slots - dayAppts.length)).map(evt => (
+                  <div
+                    key={evt.id}
+                    title={evt.title}
+                    className="w-full text-left text-xs rounded px-1 py-0.5 truncate border-l-2
+                      bg-slate-200 border-slate-500 text-slate-800 cursor-default"
+                  >
+                    {evt.all_day ? '' : `${format(new Date(evt.start), 'h:mm a')}${evt.end && evt.end !== evt.start ? `–${format(new Date(evt.end), 'h:mm a')}` : ''} `}{evt.title}
+                  </div>
+                ))}
+                {totalItems > slots && (
+                  <p className="text-xs text-gray-400 pl-1">+{totalItems - slots} more</p>
                 )}
               </div>
             </div>
@@ -252,7 +278,17 @@ function AppointmentDetail({
 
 type ViewMode = 'week' | 'month'
 
-export function CalendarView({ appointments, onAppointmentClick, onEdit, onConfirm, currencySymbol = '$' }: Props) {
+function getRangeISO(viewMode: ViewMode, anchor: Date): [string, string] {
+  const start = viewMode === 'week'
+    ? startOfWeek(anchor, { weekStartsOn: 1 })
+    : startOfWeek(startOfMonth(anchor), { weekStartsOn: 1 })
+  const end = viewMode === 'week'
+    ? endOfWeek(anchor, { weekStartsOn: 1 })
+    : endOfWeek(endOfMonth(anchor), { weekStartsOn: 1 })
+  return [start.toISOString(), end.toISOString()]
+}
+
+export function CalendarView({ appointments, externalEvents = [], onAppointmentClick, onEdit, onConfirm, currencySymbol = '$', onRangeChange }: Props) {
   const [viewMode, setViewMode] = useState<ViewMode>('week')
   const [anchor, setAnchor] = useState(() => new Date())
   const [selected, setSelected] = useState<Appointment | null>(null)
@@ -262,13 +298,23 @@ export function CalendarView({ appointments, onAppointmentClick, onEdit, onConfi
     onAppointmentClick?.(appt)
   }
 
-  const goBack = () => setAnchor(a => viewMode === 'week' ? subWeeks(a, 1) : subMonths(a, 1))
-  const goFwd  = () => setAnchor(a => viewMode === 'week' ? addWeeks(a, 1) : addMonths(a, 1))
-  const goNow  = () => setAnchor(new Date())
+  const navigate = (newAnchor: Date, newMode?: ViewMode) => {
+    const mode = newMode ?? viewMode
+    setAnchor(newAnchor)
+    if (newMode) setViewMode(newMode)
+    const [start, end] = getRangeISO(mode, newAnchor)
+    onRangeChange?.(start, end)
+  }
+
+  const goBack = () => navigate(viewMode === 'week' ? subWeeks(anchor, 1) : subMonths(anchor, 1))
+  const goFwd  = () => navigate(viewMode === 'week' ? addWeeks(anchor, 1) : addMonths(anchor, 1))
+  const goNow  = () => navigate(new Date())
 
   const rangeLabel = viewMode === 'week'
     ? `${format(startOfWeek(anchor, { weekStartsOn: 1 }), 'MMM d')} – ${format(endOfWeek(anchor, { weekStartsOn: 1 }), 'MMM d, yyyy')}`
     : format(anchor, 'MMMM yyyy')
+
+  const hasExternalEvents = externalEvents.length > 0
 
   return (
     <div className="card p-0 overflow-hidden">
@@ -291,7 +337,7 @@ export function CalendarView({ appointments, onAppointmentClick, onEdit, onConfi
           {(['week', 'month'] as ViewMode[]).map(m => (
             <button
               key={m}
-              onClick={() => setViewMode(m)}
+              onClick={() => navigate(anchor, m)}
               className={`px-3 py-1 text-xs font-medium rounded-md transition-colors capitalize ${
                 viewMode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
@@ -310,12 +356,18 @@ export function CalendarView({ appointments, onAppointmentClick, onEdit, onConfi
             <span className="text-xs text-gray-500">{label}</span>
           </div>
         ))}
+        {hasExternalEvents && (
+          <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-gray-200">
+            <div className="w-2.5 h-2.5 rounded-sm border-l-2 bg-slate-200 border-slate-500" />
+            <span className="text-xs text-gray-500">Google Calendar</span>
+          </div>
+        )}
       </div>
 
       {/* Calendar body */}
       {viewMode === 'week'
-        ? <WeekView  anchor={anchor} appointments={appointments} onAppointmentClick={handleClick} />
-        : <MonthView anchor={anchor} appointments={appointments} onAppointmentClick={handleClick} />
+        ? <WeekView  anchor={anchor} appointments={appointments} externalEvents={externalEvents} onAppointmentClick={handleClick} />
+        : <MonthView anchor={anchor} appointments={appointments} externalEvents={externalEvents} onAppointmentClick={handleClick} />
       }
 
       {/* Detail popover */}
@@ -324,6 +376,7 @@ export function CalendarView({ appointments, onAppointmentClick, onEdit, onConfi
           appt={selected}
           onClose={() => setSelected(null)}
           onEdit={onEdit}
+          onConfirm={onConfirm}
           currencySymbol={currencySymbol}
         />
       )}

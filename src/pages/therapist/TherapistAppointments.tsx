@@ -7,7 +7,7 @@ import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 import {
   listTherapistAppointments, createAppointment, updateAppointmentStatus,
-  createRecurringAppointments, updateAppointment,
+  createRecurringAppointments, updateAppointment, listGoogleCalendarEvents,
 } from '../../api/appointments'
 import { billNow } from '../../api/invoices'
 import { listMyClients, getMyTherapistProfile } from '../../api/clients'
@@ -364,6 +364,18 @@ export function TherapistAppointments() {
   const [statusFilter, setStatusFilter] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('calendar')
   const [confirmPanelOpen, setConfirmPanelOpen] = useState(false)
+  const [calendarRange, setCalendarRange] = useState<{ start: string; end: string }>(() => {
+    const now = new Date()
+    const { startOfWeek: sow, endOfWeek: eow } = (() => {
+      const d = new Date(now)
+      const day = d.getDay()
+      const diff = (day === 0 ? -6 : 1 - day)
+      const start = new Date(d); start.setDate(d.getDate() + diff); start.setHours(0,0,0,0)
+      const end = new Date(start); end.setDate(start.getDate() + 6); end.setHours(23,59,59,999)
+      return { startOfWeek: start, endOfWeek: end }
+    })()
+    return { start: sow.toISOString(), end: eow.toISOString() }
+  })
   const [newApptDropdownOpen, setNewApptDropdownOpen] = useState(false)
   const [isRecurring, setIsRecurring] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -396,6 +408,12 @@ export function TherapistAppointments() {
   })
   const { data: clients = [] } = useQuery({ queryKey: ['clients'], queryFn: listMyClients, staleTime: 60_000 })
   const { data: serviceTypes = [] } = useQuery({ queryKey: ['service-types'], queryFn: listServiceTypes, staleTime: 300_000 })
+  const { data: externalEvents = [] } = useQuery({
+    queryKey: ['google-calendar-events', calendarRange.start, calendarRange.end],
+    queryFn: () => listGoogleCalendarEvents(calendarRange.start, calendarRange.end),
+    staleTime: 60_000,
+    enabled: viewMode === 'calendar',
+  })
   const activeClients = clients.filter(c => c.is_active)
 
   // ── Create form ───────────────────────────────────────────────────────────
@@ -780,9 +798,11 @@ export function TherapistAppointments() {
       {viewMode === 'calendar' && (
         <CalendarView
           appointments={appointments}
+          externalEvents={externalEvents}
           onEdit={setEditingAppt}
           onConfirm={(appt) => statusMutation.mutate({ id: appt.id, status: 'completed' })}
           currencySymbol={sym}
+          onRangeChange={(start, end) => setCalendarRange({ start, end })}
         />
       )}
 
